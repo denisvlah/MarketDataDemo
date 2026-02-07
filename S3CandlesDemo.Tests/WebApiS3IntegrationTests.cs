@@ -1,11 +1,6 @@
 using System.Net.Http.Json;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Xunit;
 using S3CandlesDemo.Candles;
-using System.Text.Json;
-using System.Text;
 
 namespace S3CandlesDemo.Tests;
 
