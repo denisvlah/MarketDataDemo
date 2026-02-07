@@ -28,9 +28,13 @@ public class WebApiS3IntegrationTests : IClassFixture<WebApplicationFactory<Prog
                     ["S3Candles:Prefix"] = "candles",
                     ["S3Candles:AWS:AccessKey"] = MinioFixture.AccessKey,
                     ["S3Candles:AWS:SecretKey"] = MinioFixture.SecretKey,
-                    ["S3Candles:AWS:Region"] = "us-east-1"
+                    ["S3Candles:AWS:Region"] = "us-east-1",
+                    ["S3Candles:AWS:Url"] = minio.ServiceUrl ?? "http://localhost:7000"
                 };
-                config.Add(new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource { InitialData = settings });
+                config.Add(new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource
+                {
+                    InitialData = settings.Select(kv => new KeyValuePair<string, string?>(kv.Key, kv.Value))
+                });
             });
         });
         _minio = minio;

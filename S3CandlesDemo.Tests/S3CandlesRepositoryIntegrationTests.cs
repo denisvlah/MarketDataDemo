@@ -42,6 +42,13 @@ public class MinioFixture : IAsyncLifetime
         var port = Container.GetMappedPublicPort(MinioPort);
         ServiceUrl = $"http://{Container.Hostname}:{port}";
         Client = new AmazonS3Client(AccessKey, SecretKey, new AmazonS3Config { ServiceURL = ServiceUrl, ForcePathStyle = true, UseHttp = true });
+        // Ensure bucket exists for integration tests
+        var bucketName = "minio-test-bucket";
+        var minioBuckets = await Client.ListBucketsAsync();
+        if (!minioBuckets.Buckets.Any(b => b.BucketName == bucketName))
+        {
+            await Client.PutBucketAsync(new PutBucketRequest { BucketName = bucketName });
+        }
     }
 
     public async Task DisposeAsync()

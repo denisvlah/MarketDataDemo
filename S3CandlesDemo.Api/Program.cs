@@ -2,41 +2,55 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Amazon.S3;
 using S3CandlesDemo.Candles;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-var s3Config = builder.Configuration.GetSection("S3Candles");
-var bucket = s3Config.GetValue<string>("Bucket");
-var prefix = s3Config.GetValue<string>("Prefix");
-var awsConfig = s3Config.GetSection("AWS");
-var accessKey = awsConfig.GetValue<string>("AccessKey");
-var secretKey = awsConfig.GetValue<string>("SecretKey");
-var region = awsConfig.GetValue<string>("Region");
-var url =  awsConfig.GetValue<string>("Url");
+builder.Services.AddOpenApi();
 
-if (bucket == null || accessKey == null || secretKey == null || region == null)
+builder.Services.AddSingleton<ICandlesRepository>(sp =>
 {
-    throw new Exception("S3Candles configuration is missing required fields.");
-}
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var s3Config = sp.GetRequiredService<IConfiguration>().GetSection("S3Candles");
+        var bucket = s3Config.GetValue<string>("Bucket");
+        var prefix = s3Config.GetValue<string>("Prefix");
+        var awsConfig = s3Config.GetSection("AWS");
+        var accessKey = awsConfig.GetValue<string>("AccessKey");
+        var secretKey = awsConfig.GetValue<string>("SecretKey");
+        var region = awsConfig.GetValue<string>("Region");
+        var url = awsConfig.GetValue<string>("Url");
 
-builder.Services.AddSingleton<ICandlesRepository>(sp => {
-    AmazonS3Client s3Client;
-    if (!string.IsNullOrWhiteSpace(url))
-    {
-        s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
+        if (string.IsNullOrEmpty(bucket) || string.IsNullOrEmpty(accessKey) ||
+            string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(region))
         {
-            ServiceURL=url,
-            ForcePathStyle = true,
-            UseHttp = true
-        });
+            logger.LogCritical("S3 configuration is incomplete. Bucket, AccessKey, SecretKey, and Region are required.");
+            Environment.Exit(1);
+        }
+
+        AmazonS3Client s3Client;
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
+            {
+                ServiceURL = url,
+                ForcePathStyle = true,
+                UseHttp = true
+            });
+        }
+        else
+        {
+            s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
+        }
+
+        return new S3CandlesRepository(bucket!, prefix, s3Client);
     }
-    else
+    catch (Exception ex)
     {
-        s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
+        logger.LogCritical(ex, "Failed to initialize S3CandlesRepository. S3 connection is not available.");
+        Environment.Exit(1);
+        throw; // Never reached, but satisfies compiler
     }
-    
-    return new S3CandlesRepository(bucket, prefix, s3Client);
 });
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -48,8 +62,8 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
@@ -69,21 +83,21 @@ app.MapGet("/candles/{symbol}/{intervalMinutes}", async (string symbol, int inte
     {
         var candles = repo.FetchCandlesAsync(symbol, intervalMinutes, from, to, cancellationToken);
         ctx.Response.ContentType = "application/json";
-    await ctx.Response.WriteAsync("[");
-    bool first = true;
+        await ctx.Response.WriteAsync("[");
+        bool first = true;
 
-    await foreach (var candle in candles)
-    {
-        if (!first) await ctx.Response.WriteAsync(",");
-        first = false;
+        await foreach (var candle in candles)
+        {
+            if (!first) await ctx.Response.WriteAsync(",");
+            first = false;
 
-        await JsonSerializer.SerializeAsync(
-            ctx.Response.Body,
-            candle,
-            AppJsonSerializerContext.Default.Candle,
-            ctx.RequestAborted);
-    }
-    await ctx.Response.WriteAsync("]");
+            await JsonSerializer.SerializeAsync(
+                ctx.Response.Body,
+                candle,
+                AppJsonSerializerContext.Default.Candle,
+                ctx.RequestAborted);
+        }
+        await ctx.Response.WriteAsync("]");
     });
 
 // Retrieve all file info for a symbol/interval

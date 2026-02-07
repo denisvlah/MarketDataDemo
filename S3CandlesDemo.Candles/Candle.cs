@@ -8,7 +8,7 @@ namespace S3CandlesDemo.Candles
     {
         [JsonPropertyName("t")]
         public DateTime Timestamp { get; set; }
-        
+
         [JsonPropertyName("o")]
         public double Open { get; set; }
         [JsonPropertyName("h")]

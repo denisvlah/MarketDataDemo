@@ -8,11 +8,18 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <PublishTrimmed>true</PublishTrimmed>
     <StripSymbolsDuringAotCompilation>true</StripSymbolsDuringAotCompilation>
+    <!-- Enable enhanced model metadata for Swagger compatibility -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <!-- Disable AOT for development/debugging to allow Swagger to work -->
+    <PublishAot>false</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.16" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="1.2.45" />
   </ItemGroup>
 
   <ItemGroup>

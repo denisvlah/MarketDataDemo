@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="3c706831-f307-426b-b183-4206aa32f332" name="@denisvlah-B560M-DS3H-V2 2026-02-07 23:14:47" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-02-07T23:14:47.2223412+02:00" queuing="2026-02-07T23:14:47.2223412+02:00" start="2026-02-07T23:14:45.3295841+02:00" finish="2026-02-07T23:14:49.7688649+02:00" />
+  <TestSettings name="default" id="86c849c9-ace9-407f-be03-dd9874f6b71f">
+    <Deployment runDeploymentRoot="_denisvlah-B560M-DS3H-V2_2026-02-07_23_14_47" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="65e5443b-e074-4c9b-92c6-2bb906e9e265" testId="9e541311-ee53-892e-101e-690e15d24295" testName="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests.StoreInTwoFiles_AndFetch_FromMiddle_ReturnsSubset" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0283939" startTime="2026-02-07T23:14:46.2973248+02:00" endTime="2026-02-07T23:14:46.2973250+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="65e5443b-e074-4c9b-92c6-2bb906e9e265" />
+    <UnitTestResult executionId="70502eaa-4293-42a2-8f49-e93363d5a411" testId="ab88744f-9aa2-1f6f-51a8-e3a689166e71" testName="S3CandlesDemo.Tests.CandleSerializationTests.BytesToCandle_Throws_On_Small_Buffer" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0007304" startTime="2026-02-07T23:14:46.2775721+02:00" endTime="2026-02-07T23:14:46.2775721+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="70502eaa-4293-42a2-8f49-e93363d5a411" />
+    <UnitTestResult executionId="29ae398d-918c-403e-ae5b-5db56fbfa389" testId="94db7a85-8e5d-d780-b693-b56a043e1b9c" testName="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.GetAndRemoveMethods_WorkCorrectly" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0289813" startTime="2026-02-07T23:14:49.2143094+02:00" endTime="2026-02-07T23:14:49.2143096+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="29ae398d-918c-403e-ae5b-5db56fbfa389" />
+    <UnitTestResult executionId="c2454501-033f-4d86-8cc5-1ad075179c3d" testId="a0a69b55-35cf-5167-60dc-2a53c18fcda8" testName="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.StoreAndFetch_With_Minio_Works" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0924040" startTime="2026-02-07T23:14:49.1617356+02:00" endTime="2026-02-07T23:14:49.1617358+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c2454501-033f-4d86-8cc5-1ad075179c3d" />
+    <UnitTestResult executionId="6e6ddf4f-8240-4a27-a4fe-265d5ade72e6" testId="4885e58f-0c20-0117-9314-9bc282da7afb" testName="S3CandlesDemo.Tests.WebApiS3IntegrationTests.StoreAndFetchCandles_WorksWithMinio" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.2166068" startTime="2026-02-07T23:14:49.4836466+02:00" endTime="2026-02-07T23:14:49.4836468+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6e6ddf4f-8240-4a27-a4fe-265d5ade72e6" />
+    <UnitTestResult executionId="67bb8ff6-14ee-4d4c-be9a-b2bda9ccb2b2" testId="5a02e89e-0759-4e74-b934-a12178368ebb" testName="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.StoreAndFetch_WithPrefix_Works" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0233290" startTime="2026-02-07T23:14:49.1852187+02:00" endTime="2026-02-07T23:14:49.1852188+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="67bb8ff6-14ee-4d4c-be9a-b2bda9ccb2b2" />
+    <UnitTestResult executionId="b96218d1-dbdb-45a7-b3f3-6f2bdf17dcab" testId="1e69438e-a542-d4d7-8239-55c040bae159" testName="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests.GetAndRemoveMethods_WorkCorrectly" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0045376" startTime="2026-02-07T23:14:46.3036016+02:00" endTime="2026-02-07T23:14:46.3036026+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b96218d1-dbdb-45a7-b3f3-6f2bdf17dcab" />
+    <UnitTestResult executionId="9c0e58b2-534a-4d3e-a1c8-2417a56b686d" testId="d98a74c0-cf14-d422-7e93-d7045f3ca3aa" testName="S3CandlesDemo.Tests.CandleSerializationTests.CandleToBytes_And_BytesToCandle_RoundTrip_Works" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0031843" startTime="2026-02-07T23:14:46.2775957+02:00" endTime="2026-02-07T23:14:46.2775957+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9c0e58b2-534a-4d3e-a1c8-2417a56b686d" />
+    <UnitTestResult executionId="723c4f1d-37d8-47a1-ab13-9112b403ee2b" testId="2b92e2a9-60ca-6d7c-c27a-fd09b57a0a66" testName="S3CandlesDemo.Tests.CandleSerializationTests.CandleByteSize_Is_Correct" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0029941" startTime="2026-02-07T23:14:46.2720042+02:00" endTime="2026-02-07T23:14:46.2721806+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="723c4f1d-37d8-47a1-ab13-9112b403ee2b" />
+    <UnitTestResult executionId="d70270ab-9a66-477f-88e8-338e16b72338" testId="68fba73c-95b3-1f31-6fdf-3609a53a627c" testName="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.StoreInTwoBatches_AndFetchSubset_Works" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0284318" startTime="2026-02-07T23:14:49.2428648+02:00" endTime="2026-02-07T23:14:49.2428650+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d70270ab-9a66-477f-88e8-338e16b72338" />
+    <UnitTestResult executionId="99e6cccb-b603-49e4-a965-752a2d614191" testId="ef14756b-b9fc-e0b9-4bf9-ce43e492a30d" testName="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests.StoreAndFetch_AllCandles_Returned" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0043562" startTime="2026-02-07T23:14:46.3080853+02:00" endTime="2026-02-07T23:14:46.3080855+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="99e6cccb-b603-49e4-a965-752a2d614191" />
+    <UnitTestResult executionId="a545748a-56da-44d5-a5c6-77edef7e69e4" testId="7a4d5630-598d-5cdd-6f52-d11df2b210e5" testName="S3CandlesDemo.Tests.DummyCandlesRepositoryTests.GetAndRemoveMethods_DoNotThrow" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0025410" startTime="2026-02-07T23:14:46.2757974+02:00" endTime="2026-02-07T23:14:46.2757975+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a545748a-56da-44d5-a5c6-77edef7e69e4" />
+    <UnitTestResult executionId="6a93f9a4-8fc2-44d0-945c-e1ff730dfb71" testId="f2b5a5d2-c935-00f0-e907-cae4fcc7dd6b" testName="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.FetchCandles_FromMiddleOfFile_Works" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0219254" startTime="2026-02-07T23:14:49.2649185+02:00" endTime="2026-02-07T23:14:49.2649187+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6a93f9a4-8fc2-44d0-945c-e1ff730dfb71" />
+    <UnitTestResult executionId="dc0b2616-9514-4364-abd0-473d82b9a102" testId="1b9be1df-1489-fc30-4345-9281b6c1a39f" testName="S3CandlesDemo.Tests.CandleSerializationTests.CandleToBytes_Throws_On_Small_Buffer" computerName="denisvlah-B560M-DS3H-V2" duration="00:00:00.0014705" startTime="2026-02-07T23:14:46.2775138+02:00" endTime="2026-02-07T23:14:46.2775146+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="dc0b2616-9514-4364-abd0-473d82b9a102" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="S3CandlesDemo.Tests.CandleSerializationTests.CandleToBytes_Throws_On_Small_Buffer" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="1b9be1df-1489-fc30-4345-9281b6c1a39f">
+      <Execution id="dc0b2616-9514-4364-abd0-473d82b9a102" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.CandleSerializationTests" name="CandleToBytes_Throws_On_Small_Buffer" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.StoreAndFetch_With_Minio_Works" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="a0a69b55-35cf-5167-60dc-2a53c18fcda8">
+      <Execution id="c2454501-033f-4d86-8cc5-1ad075179c3d" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests" name="StoreAndFetch_With_Minio_Works" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests.GetAndRemoveMethods_WorkCorrectly" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="1e69438e-a542-d4d7-8239-55c040bae159">
+      <Execution id="b96218d1-dbdb-45a7-b3f3-6f2bdf17dcab" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests" name="GetAndRemoveMethods_WorkCorrectly" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.GetAndRemoveMethods_WorkCorrectly" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="94db7a85-8e5d-d780-b693-b56a043e1b9c">
+      <Execution id="29ae398d-918c-403e-ae5b-5db56fbfa389" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests" name="GetAndRemoveMethods_WorkCorrectly" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.CandleSerializationTests.CandleByteSize_Is_Correct" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="2b92e2a9-60ca-6d7c-c27a-fd09b57a0a66">
+      <Execution id="723c4f1d-37d8-47a1-ab13-9112b403ee2b" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.CandleSerializationTests" name="CandleByteSize_Is_Correct" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.DummyCandlesRepositoryTests.GetAndRemoveMethods_DoNotThrow" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="7a4d5630-598d-5cdd-6f52-d11df2b210e5">
+      <Execution id="a545748a-56da-44d5-a5c6-77edef7e69e4" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.DummyCandlesRepositoryTests" name="GetAndRemoveMethods_DoNotThrow" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.WebApiS3IntegrationTests.StoreAndFetchCandles_WorksWithMinio" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="4885e58f-0c20-0117-9314-9bc282da7afb">
+      <Execution id="6e6ddf4f-8240-4a27-a4fe-265d5ade72e6" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.WebApiS3IntegrationTests" name="StoreAndFetchCandles_WorksWithMinio" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests.StoreAndFetch_AllCandles_Returned" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="ef14756b-b9fc-e0b9-4bf9-ce43e492a30d">
+      <Execution id="99e6cccb-b603-49e4-a965-752a2d614191" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests" name="StoreAndFetch_AllCandles_Returned" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.FetchCandles_FromMiddleOfFile_Works" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="f2b5a5d2-c935-00f0-e907-cae4fcc7dd6b">
+      <Execution id="6a93f9a4-8fc2-44d0-945c-e1ff730dfb71" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests" name="FetchCandles_FromMiddleOfFile_Works" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.StoreInTwoBatches_AndFetchSubset_Works" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="68fba73c-95b3-1f31-6fdf-3609a53a627c">
+      <Execution id="d70270ab-9a66-477f-88e8-338e16b72338" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests" name="StoreInTwoBatches_AndFetchSubset_Works" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests.StoreInTwoFiles_AndFetch_FromMiddle_ReturnsSubset" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="9e541311-ee53-892e-101e-690e15d24295">
+      <Execution id="65e5443b-e074-4c9b-92c6-2bb906e9e265" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.FileSystemCandlesRepositoryTests" name="StoreInTwoFiles_AndFetch_FromMiddle_ReturnsSubset" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.CandleSerializationTests.BytesToCandle_Throws_On_Small_Buffer" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="ab88744f-9aa2-1f6f-51a8-e3a689166e71">
+      <Execution id="70502eaa-4293-42a2-8f49-e93363d5a411" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.CandleSerializationTests" name="BytesToCandle_Throws_On_Small_Buffer" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.CandleSerializationTests.CandleToBytes_And_BytesToCandle_RoundTrip_Works" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="d98a74c0-cf14-d422-7e93-d7045f3ca3aa">
+      <Execution id="9c0e58b2-534a-4d3e-a1c8-2417a56b686d" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.CandleSerializationTests" name="CandleToBytes_And_BytesToCandle_RoundTrip_Works" />
+    </UnitTest>
+    <UnitTest name="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests.StoreAndFetch_WithPrefix_Works" storage="/home/denisvlah/desktop/s3candlesdemo/s3candlesdemo.tests/bin/debug/net10.0/s3candlesdemo.tests.dll" id="5a02e89e-0759-4e74-b934-a12178368ebb">
+      <Execution id="67bb8ff6-14ee-4d4c-be9a-b2bda9ccb2b2" />
+      <TestMethod codeBase="/home/denisvlah/Desktop/s3CandlesDemo/S3CandlesDemo.Tests/bin/Debug/net10.0/S3CandlesDemo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="S3CandlesDemo.Tests.S3CandlesRepositoryIntegrationTests" name="StoreAndFetch_WithPrefix_Works" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="9e541311-ee53-892e-101e-690e15d24295" executionId="65e5443b-e074-4c9b-92c6-2bb906e9e265" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ab88744f-9aa2-1f6f-51a8-e3a689166e71" executionId="70502eaa-4293-42a2-8f49-e93363d5a411" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="94db7a85-8e5d-d780-b693-b56a043e1b9c" executionId="29ae398d-918c-403e-ae5b-5db56fbfa389" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a0a69b55-35cf-5167-60dc-2a53c18fcda8" executionId="c2454501-033f-4d86-8cc5-1ad075179c3d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4885e58f-0c20-0117-9314-9bc282da7afb" executionId="6e6ddf4f-8240-4a27-a4fe-265d5ade72e6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5a02e89e-0759-4e74-b934-a12178368ebb" executionId="67bb8ff6-14ee-4d4c-be9a-b2bda9ccb2b2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1e69438e-a542-d4d7-8239-55c040bae159" executionId="b96218d1-dbdb-45a7-b3f3-6f2bdf17dcab" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d98a74c0-cf14-d422-7e93-d7045f3ca3aa" executionId="9c0e58b2-534a-4d3e-a1c8-2417a56b686d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2b92e2a9-60ca-6d7c-c27a-fd09b57a0a66" executionId="723c4f1d-37d8-47a1-ab13-9112b403ee2b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="68fba73c-95b3-1f31-6fdf-3609a53a627c" executionId="d70270ab-9a66-477f-88e8-338e16b72338" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ef14756b-b9fc-e0b9-4bf9-ce43e492a30d" executionId="99e6cccb-b603-49e4-a965-752a2d614191" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7a4d5630-598d-5cdd-6f52-d11df2b210e5" executionId="a545748a-56da-44d5-a5c6-77edef7e69e4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f2b5a5d2-c935-00f0-e907-cae4fcc7dd6b" executionId="6a93f9a4-8fc2-44d0-945c-e1ff730dfb71" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1b9be1df-1489-fc30-4345-9281b6c1a39f" executionId="dc0b2616-9514-4364-abd0-473d82b9a102" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="14" executed="14" passed="14" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.0)
+[xUnit.net 00:00:00.46]   Discovering: S3CandlesDemo.Tests
+[xUnit.net 00:00:00.49]   Discovered:  S3CandlesDemo.Tests
+[xUnit.net 00:00:00.50]   Starting:    S3CandlesDemo.Tests
+warn: Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware[3]
+      Failed to determine the https port for redirect.
+[xUnit.net 00:00:03.96]   Finished:    S3CandlesDemo.Tests
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>
