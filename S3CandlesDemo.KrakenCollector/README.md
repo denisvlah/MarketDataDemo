@@ -24,7 +24,7 @@ ETHUSD,ETHUSD,1440,2024-06-01
 SOLUSD,SOLUSD,15,2025-01-01
 ```
 
-The first version of this file is stored in the **project root folder** (`S3CandlesDemo.KrakenCollector/`). A future version may read it from a separate S3 bucket.
+The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3Candles:ConfigKey` settings. This allows centralised management of the collection schedule without redeploying the app. If these settings are empty, the app falls back to a **local file** in the project output directory.
 
 ### Collection Logic
 
@@ -64,6 +64,13 @@ Use the [`KrakenExchange.Net`](https://www.nuget.org/packages/KrakenExchange.Net
 - If a Kraken API call fails, retry up to 3 times with exponential backoff before failing the job.
 - Partial progress is preserved — candles already stored in S3 remain; the next run will resume from the last stored timestamp.
 - Log each job's progress: pair, interval, candles fetched, time range covered.
+
+### Integration testing
+This project has a bunch of integration tests in the S3CandlesDemo.Tests project.
+
+I uses minio to simulate the s3 storage.
+
+It test the internal logic of collector classes and cleans up the mess after test finish.
 
 ## Quick Start
 

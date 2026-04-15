@@ -25,7 +25,7 @@ namespace S3CandlesDemo.Candles
             if (!string.IsNullOrEmpty(_prefix) && !key.StartsWith(_prefix))
                 key = KeyFromFileName(Path.GetFileName(fileInfo.Path));
             await _s3Client.DeleteObjectAsync(_bucket, key, cancellationToken);
-            foreach (var kvp in _fileIndex) 
+            foreach (var kvp in _fileIndex)
                 kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
         }
         private readonly IAmazonS3 _s3Client;

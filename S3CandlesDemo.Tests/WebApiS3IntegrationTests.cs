@@ -2,16 +2,19 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using S3CandlesDemo.Candles;
 
+// Disambiguate 'Program' — use the Api project's Program class
+using ApiProgram = S3CandlesDemo.Api.Program;
+
 namespace S3CandlesDemo.Tests;
 
 [Collection("Minio collection")]
-public class WebApiS3IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public class WebApiS3IntegrationTests : IClassFixture<WebApplicationFactory<ApiProgram>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly WebApplicationFactory<ApiProgram> _factory;
     private readonly MinioFixture _minio;
     private readonly HttpClient _client;
 
-    public WebApiS3IntegrationTests(WebApplicationFactory<Program> factory, MinioFixture minio)
+    public WebApiS3IntegrationTests(WebApplicationFactory<ApiProgram> factory, MinioFixture minio)
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {

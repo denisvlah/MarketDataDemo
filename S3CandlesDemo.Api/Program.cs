@@ -124,3 +124,9 @@ internal partial class AppJsonSerializerContext : JsonSerializerContext
 {
 
 }
+
+namespace S3CandlesDemo.Api
+{
+    // Expose Program for WebApplicationFactory<T> in integration tests
+    public partial class Program { }
+}
