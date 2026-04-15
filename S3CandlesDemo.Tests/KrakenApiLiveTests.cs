@@ -3,6 +3,7 @@ using Kraken.Net.Interfaces.Clients;
 using Microsoft.Extensions.Logging;
 using S3CandlesDemo.Candles;
 using S3CandlesDemo.KrakenCollector;
+using Xunit.Abstractions;
 
 namespace S3CandlesDemo.Tests;
 
@@ -14,13 +15,15 @@ namespace S3CandlesDemo.Tests;
 /// </summary>
 public class KrakenApiLiveTests : IDisposable
 {
+    private readonly ITestOutputHelper _output;
     private readonly IKrakenRestClient _restClient;
     private readonly KrakenOhlcService _service;
 
-    public KrakenApiLiveTests()
+    public KrakenApiLiveTests(ITestOutputHelper output)
     {
+        _output = output;
         _restClient = new KrakenRestClient();
-        var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+        var loggerFactory = LoggerFactory.Create(b => b.AddXUnit(output));
         _service = new KrakenOhlcService(_restClient, loggerFactory.CreateLogger<KrakenOhlcService>());
     }
 
@@ -175,5 +178,20 @@ public class KrakenApiLiveTests : IDisposable
         var minimumGap = TimeSpan.FromMinutes(60);
         Assert.True(DateTime.UtcNow - lastCandle.Timestamp >= minimumGap,
             $"Last candle at {lastCandle.Timestamp} is too recent — the current candle should have been discarded");
+    }
+
+
+    [Fact]
+    public async Task GetOhlc_From_20240101_oneBatch()
+    {
+        // Fetch recent data — the last candle (current, uncommitted) should have been discarded
+        var since = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var batch = await _service.GetOhlcAsync("XBTUSD", 1, since);
+        _output.WriteLine("First candle timestamp: " + batch.Candles.First().Timestamp);
+        _output.WriteLine("Last candle timestamp: " + batch.Candles.Last().Timestamp);
+        _output.WriteLine("Total candles returned: " + batch.Candles.Count);
+
+
+        Assert.NotEmpty(batch.Candles);        
     }
 }

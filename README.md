@@ -43,6 +43,58 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
    - If data is already present in the binary files, those candles should be skipped.
    - All actions must be properly logged.
 
+## Project Structure
+
+| Project | Description |
+|---------|-------------|
+| **S3CandlesDemo.Candles** | Core library — `ICandlesRepository`, binary serialization, filesystem & S3 implementations |
+| **S3CandlesDemo.Api** | ASP.NET Minimal API — HTTP endpoints for candle storage/retrieval |
+| **S3CandlesDemo.KrakenCollector** | One-shot batch job — collects OHLCV data from Kraken API and stores to S3 |
+| **S3CandlesDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
+
+## Docker Compose Deployment
+
+A full-stack `docker-compose.yml` runs all services together with MinIO as the S3 backend:
+
+| Service | Purpose | Port |
+|---------|---------|------|
+| `minio` | S3-compatible storage (persistent volume) | `9000` (API), `9001` (console) |
+| `minio-setup` | Init container — creates buckets, seeds `kraken-collector-config.csv` | — |
+| `api` | Candles HTTP API | `5044` |
+| `kraken-collector` | Kraken data collector (runs once, then exits) | `5099` (health) |
+
+```bash
+# Start everything
+docker compose up -d
+
+# Watch logs
+docker compose logs -f
+
+# Re-run the collector on demand
+docker compose restart kraken-collector
+
+# MinIO console
+open http://localhost:9001  # minioadmin / minioadmin
+```
+
+The collector reads its schedule from `kraken-collector-config.csv` stored in the `candles-config` S3 bucket. On first start, `minio-setup` seeds it from `S3CandlesDemo.KrakenCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
+
+## Local Development (without Docker)
+
+```bash
+# Start MinIO only
+bash startMinio.sh
+
+# Run API (uses appsettings.Development.json → localhost:7000)
+dotnet run --project S3CandlesDemo.Api
+
+# Run collector
+dotnet run --project S3CandlesDemo.KrakenCollector
+
+# Run tests
+dotnet test
+```
+
 ## Additional Recommendations
 
 - **Testing**: Define unit and integration tests for all major components, especially for file operations and API endpoints.
@@ -53,5 +105,5 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
 
 ---
 
-*Last updated: January 5, 2026*
+*Last updated: April 15, 2026*
 *Author: denisvlah*
