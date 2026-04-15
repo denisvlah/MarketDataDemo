@@ -30,20 +30,16 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
 
         AmazonS3Client s3Client;
         if (!string.IsNullOrWhiteSpace(url))
-        {
             s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
             {
                 ServiceURL = url,
                 ForcePathStyle = true,
                 UseHttp = true
             });
-        }
         else
-        {
             s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
-        }
 
-        return new S3CandlesRepository(bucket!, prefix, s3Client);
+        return new S3CandlesRepository(bucket, prefix, s3Client);
     }
     catch (Exception ex)
     {

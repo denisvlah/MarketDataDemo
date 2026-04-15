@@ -22,12 +22,15 @@ public class MinioFixture : IAsyncLifetime
         try
         {
             var testClient = new AmazonS3Client(AccessKey, SecretKey, new AmazonS3Config { ServiceURL = $"http://localhost:{MinioPort}", ForcePathStyle = true, UseHttp = true });
-            var buckets = await testClient.ListBucketsAsync();
+            var _ = await testClient.ListBucketsAsync();
             ServiceUrl = $"http://localhost:{MinioPort}";
             Client = testClient;
             return;
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
 
         Container = new TestcontainersBuilder<TestcontainersContainer>()
             .WithImage("minio/minio:latest")
@@ -45,18 +48,12 @@ public class MinioFixture : IAsyncLifetime
         // Ensure bucket exists for integration tests
         var bucketName = "minio-test-bucket";
         var minioBuckets = await Client.ListBucketsAsync();
-        if (!minioBuckets.Buckets.Any(b => b.BucketName == bucketName))
-        {
-            await Client.PutBucketAsync(new PutBucketRequest { BucketName = bucketName });
-        }
+        if (!minioBuckets.Buckets.Any(b => b.BucketName == bucketName)) await Client.PutBucketAsync(new PutBucketRequest { BucketName = bucketName });
     }
 
     public async Task DisposeAsync()
     {
-        if (Container != null)
-        {
-            await Container.CleanUpAsync();
-        }
+        if (Container != null) await Container.CleanUpAsync();
         Client?.Dispose();
     }
 }
@@ -72,11 +69,11 @@ public class S3CandlesRepositoryIntegrationTests
     {
         var bucket = "test-bucket-getremove";
         await EnsureBucketAsync(bucket);
-        var repo = new S3CandlesDemo.Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
         string symbol = "GETREMOVE";
         int interval = 5;
         DateTime start = DateTime.UtcNow.Date.AddHours(8);
-        var candles = Enumerable.Range(0, 5).Select(i => new S3CandlesDemo.Candles.Candle
+        var candles = Enumerable.Range(0, 5).Select(i => new Candles.Candle
         {
             Timestamp = start.AddMinutes(i * interval),
             Open = i,
@@ -113,20 +110,14 @@ public class S3CandlesRepositoryIntegrationTests
     {
         if (_fixture.Client == null) throw new InvalidOperationException("S3 client is not initialized.");
         var objects = await _fixture.Client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = bucket });
-        foreach (var obj in objects.S3Objects)
-        {
-            await _fixture.Client.DeleteObjectAsync(bucket, obj.Key);
-        }
+        foreach (var obj in objects.S3Objects) await _fixture.Client.DeleteObjectAsync(bucket, obj.Key);
     }
 
     private async Task EnsureBucketAsync(string bucket)
     {
         if (_fixture.Client == null) throw new InvalidOperationException("S3 client is not initialized.");
         var buckets = await _fixture.Client.ListBucketsAsync();
-        if (!buckets.Buckets.Any(b => b.BucketName == bucket))
-        {
-            await _fixture.Client.PutBucketAsync(new PutBucketRequest { BucketName = bucket });
-        }
+        if (buckets.Buckets.All(b => b.BucketName != bucket)) await _fixture.Client.PutBucketAsync(new PutBucketRequest { BucketName = bucket });
         if (!_buckets.Contains(bucket))
             _buckets.Add(bucket);
     }
@@ -141,11 +132,11 @@ public class S3CandlesRepositoryIntegrationTests
     {
         var bucket = "test-bucket-midfile";
         await EnsureBucketAsync(bucket);
-        var repo = new S3CandlesDemo.Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
         string symbol = "MIDFILE";
         int interval = 10;
         DateTime start = DateTime.UtcNow.Date.AddHours(8);
-        var candles = Enumerable.Range(0, 20).Select(i => new S3CandlesDemo.Candles.Candle
+        var candles = Enumerable.Range(0, 20).Select(i => new Candles.Candle
         {
             Timestamp = start.AddMinutes(i * interval),
             Open = i,
@@ -158,7 +149,7 @@ public class S3CandlesRepositoryIntegrationTests
         await repo.StoreCandlesAsync(symbol, interval, candles);
         DateTime from = candles[8].Timestamp;
         DateTime to = candles[15].Timestamp;
-        var fetched = new List<S3CandlesDemo.Candles.Candle>();
+        var fetched = new List<Candles.Candle>();
         await foreach (var c in repo.FetchCandlesAsync(symbol, interval, from, to))
             fetched.Add(c);
         Assert.Equal(8, fetched.Count);
@@ -181,11 +172,11 @@ public class S3CandlesRepositoryIntegrationTests
     {
         var bucket = "test-bucket-twobatch";
         await EnsureBucketAsync(bucket);
-        var repo = new S3CandlesDemo.Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
         string symbol = "MINIO2";
         int interval = 5;
         DateTime start = DateTime.UtcNow.Date.AddHours(9);
-        var firstBatch = Enumerable.Range(0, 10).Select(i => new S3CandlesDemo.Candles.Candle
+        var firstBatch = Enumerable.Range(0, 10).Select(i => new Candles.Candle
         {
             Timestamp = start.AddMinutes(i * interval),
             Open = i,
@@ -195,7 +186,7 @@ public class S3CandlesRepositoryIntegrationTests
             Volume = i * 10,
             TradeCount = i
         }).ToList();
-        var secondBatch = Enumerable.Range(10, 10).Select(i => new S3CandlesDemo.Candles.Candle
+        var secondBatch = Enumerable.Range(10, 10).Select(i => new Candles.Candle
         {
             Timestamp = start.AddMinutes(i * interval),
             Open = i,
@@ -209,7 +200,7 @@ public class S3CandlesRepositoryIntegrationTests
         await repo.StoreCandlesAsync(symbol, interval, secondBatch);
         DateTime from = start.AddMinutes(7 * interval);
         DateTime to = start.AddMinutes(15 * interval);
-        var fetched = new List<S3CandlesDemo.Candles.Candle>();
+        var fetched = new List<Candles.Candle>();
         await foreach (var c in repo.FetchCandlesAsync(symbol, interval, from, to))
             fetched.Add(c);
         Assert.Equal(9, fetched.Count);
@@ -236,11 +227,11 @@ public class S3CandlesRepositoryIntegrationTests
         var bucket = "test-bucket-prefix";
         var prefix = "candlesdata";
         await EnsureBucketAsync(bucket);
-        var repo = new S3CandlesDemo.Candles.S3CandlesRepository(bucket, prefix: prefix, client: _fixture.Client);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: prefix, client: _fixture.Client);
         string symbol = "MINIOPFX";
         int interval = 15;
         DateTime start = DateTime.UtcNow.Date.AddHours(10);
-        var candles = Enumerable.Range(0, 8).Select(i => new S3CandlesDemo.Candles.Candle
+        var candles = Enumerable.Range(0, 8).Select(i => new Candles.Candle
         {
             Timestamp = start.AddMinutes(i * interval),
             Open = i,
@@ -251,7 +242,7 @@ public class S3CandlesRepositoryIntegrationTests
             TradeCount = i
         }).ToList();
         await repo.StoreCandlesAsync(symbol, interval, candles);
-        var fetched = new List<S3CandlesDemo.Candles.Candle>();
+        var fetched = new List<Candles.Candle>();
         await foreach (var c in repo.FetchCandlesAsync(symbol, interval, candles.First().Timestamp, candles.Last().Timestamp))
             fetched.Add(c);
         Assert.Equal(candles.Count, fetched.Count);
@@ -265,11 +256,11 @@ public class S3CandlesRepositoryIntegrationTests
     {
         var bucket = "test-bucket-basic";
         await EnsureBucketAsync(bucket);
-        var repo = new S3CandlesDemo.Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
         string symbol = "MINIO";
         int interval = 5;
         DateTime start = DateTime.UtcNow.Date.AddHours(9);
-        var candles = Enumerable.Range(0, 12).Select(i => new S3CandlesDemo.Candles.Candle
+        var candles = Enumerable.Range(0, 12).Select(i => new Candles.Candle
         {
             Timestamp = start.AddMinutes(i * interval),
             Open = i,
@@ -280,7 +271,7 @@ public class S3CandlesRepositoryIntegrationTests
             TradeCount = i
         }).ToList();
         await repo.StoreCandlesAsync(symbol, interval, candles);
-        var fetched = new List<S3CandlesDemo.Candles.Candle>();
+        var fetched = new List<Candles.Candle>();
         await foreach (var c in repo.FetchCandlesAsync(symbol, interval, candles.First().Timestamp, candles.Last().Timestamp))
             fetched.Add(c);
         Assert.Equal(candles.Count, fetched.Count);

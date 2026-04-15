@@ -6,3 +6,8 @@ csv/
 *.suo
 *.userosscache
 *.sln.docstates
+
+# IDE / editor settings
+.idea/
+.vscode/
+*.DotSettings.user

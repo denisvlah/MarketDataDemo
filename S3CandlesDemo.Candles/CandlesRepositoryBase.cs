@@ -102,10 +102,7 @@ namespace S3CandlesDemo.Candles
                 if (lastCandleTimestamp > file.End)
                     continue;
                 var offset = 0L;
-                if (lastCandleTimestamp > file.Start)
-                {
-                    offset = (long)((lastCandleTimestamp - file.Start).TotalMinutes / intervalMinutes) * Candle.CandleByteSize;
-                }
+                if (lastCandleTimestamp > file.Start) offset = (long)((lastCandleTimestamp - file.Start).TotalMinutes / intervalMinutes) * Candle.CandleByteSize;
                 await using var stream = await OpenReadStreamAsync(file.Path, offset);
                 if (stream == null) continue;
                 while (true)
@@ -165,28 +162,26 @@ namespace S3CandlesDemo.Candles
         {
             var key = (symbol, intervalMinutes);
             if (_fileIndex.TryRemove(key, out var files))
-            {
                 foreach (var file in files)
-                {
                     RemovePhysicalFile(file.Path);
-                }
-            }
+
             return Task.CompletedTask;
         }
 
         public virtual Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default)
         {
             RemovePhysicalFile(fileInfo.Path);
-            foreach (var kvp in _fileIndex)
-            {
-                kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
-            }
+            foreach (var kvp in _fileIndex) kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
             return Task.CompletedTask;
         }
 
         protected virtual void RemovePhysicalFile(string path)
         {
-            try { if (File.Exists(path)) File.Delete(path); } catch { }
+            try { if (File.Exists(path)) File.Delete(path); }
+            catch
+            {
+                // ignored
+            }
         }
     }
 }

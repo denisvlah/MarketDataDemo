@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
@@ -20,10 +16,7 @@ namespace S3CandlesDemo.Candles
         public override async Task RemoveCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
         {
             var files = await GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
-            foreach (var file in files)
-            {
-                await RemoveCandleFileAsync(file, cancellationToken);
-            }
+            foreach (var file in files) await RemoveCandleFileAsync(file, cancellationToken);
         }
 
         public override async Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default)
@@ -32,10 +25,8 @@ namespace S3CandlesDemo.Candles
             if (!string.IsNullOrEmpty(_prefix) && !key.StartsWith(_prefix))
                 key = KeyFromFileName(Path.GetFileName(fileInfo.Path));
             await _s3Client.DeleteObjectAsync(_bucket, key, cancellationToken);
-            foreach (var kvp in _fileIndex)
-            {
+            foreach (var kvp in _fileIndex) 
                 kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
-            }
         }
         private readonly IAmazonS3 _s3Client;
         private readonly string _bucket;
@@ -58,15 +49,13 @@ namespace S3CandlesDemo.Candles
         protected override IEnumerable<string> EnumerateFiles()
         {
             var request = new ListObjectsV2Request { BucketName = _bucket, Prefix = _prefix };
-            ListObjectsV2Response? response = null;
+            ListObjectsV2Response? response;
             do
             {
                 response = _s3Client.ListObjectsV2Async(request).GetAwaiter().GetResult();
                 foreach (var obj in response.S3Objects)
-                {
                     if (obj.Key.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
                         yield return obj.Key;
-                }
                 request.ContinuationToken = response.NextContinuationToken;
             } while (response.IsTruncated);
         }
@@ -93,7 +82,11 @@ namespace S3CandlesDemo.Candles
             var key = KeyFromFileName(fileName);
             using var transfer = new TransferUtility(_s3Client);
             await transfer.UploadAsync(actualTemp, _bucket, key);
-            try { File.Delete(actualTemp); } catch { }
+            try { File.Delete(actualTemp); }
+            catch
+            {
+                // ignored
+            }
         }
 
 
