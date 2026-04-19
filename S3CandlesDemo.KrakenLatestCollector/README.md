@@ -1,6 +1,8 @@
-# S3CandlesDemo.KrakenCollector
+# S3CandlesDemo.KrakenLatestCollector
 
-Collects OHLCV candle data from the [Kraken REST API](https://docs.kraken.com/api/docs/rest-api/get-ohlc-data) and stores it in S3 using the shared `S3CandlesDemo.Candles` binary format.
+Collects the **latest** OHLCV candle data from the [Kraken REST API](https://docs.kraken.com/api/docs/rest-api/get-ohlc-data) and stores it in S3 using the shared `S3CandlesDemo.Candles` binary format.
+
+> **Note:** The Kraken OHLC API only returns the most recent 720 candles per interval. For deep historical data, use the separate `S3CandlesDemo.KrakenHistoricalImporter` project which loads archives from Kraken's Google Drive.
 
 ## Requirements
 
@@ -54,7 +56,7 @@ Use the [`KrakenExchange.Net`](https://www.nuget.org/packages/KrakenExchange.Net
 ### Scheduling & Lifecycle
 
 - This app is designed to run as a **one-shot batch job**, not a long-running service.
-- It will be scheduled externally (e.g., cron, Kubernetes CronJob) to run daily at **00:01 UTC**.
+- It should be scheduled externally (e.g., cron, Kubernetes CronJob) to run **every 4 hours** to avoid data gaps for short intervals (1-minute candles only cover ~12 hours with 720 entries).
 - The health check endpoint (`/health`) is available for orchestration probes during execution.
 - On completion, exit with code `0` (success) or `1` (failure).
 
@@ -72,15 +74,6 @@ I uses minio to simulate the s3 storage.
 
 It test the internal logic of collector classes and cleans up the mess after test finish.
 
-## TODO
-
-- [ ] **Change collection schedule to every 4 hours.** The Kraken OHLC endpoint only returns the 720 most recent candles per interval. For 1-minute candles that's only ~12 hours of data, so daily runs risk gaps. Running every 4 hours ensures no data is lost for any configured interval.
-
-- [ ] **Load historical candle data from Kraken's Google Drive archive.** The Kraken OHLC API cannot serve historical data beyond the latest 720 entries. Full historical OHLC data is published by Kraken in this Google Drive folder: https://drive.google.com/drive/folders/15RSlNuW_h0kVM8or8McOGOMfHeBFvFGI  
-  The collector should download and import the relevant zip archives for each configured pair/interval, then switch to incremental API collection from where the archive ends.
-
-- [ ] **Provision ~5 GB ephemeral storage for the collector.** The historical zip archives from Google Drive are large. The collector needs temporary disk space to download and extract them before importing into S3. Ensure the deployment environment (Docker, K8s, etc.) provides an ephemeral volume of at least 5 GB.
-
 ## Quick Start
 
 ```bash
@@ -88,7 +81,7 @@ It test the internal logic of collector classes and cleans up the mess after tes
 bash startMinio.sh
 
 # Run the collector
-dotnet run --project S3CandlesDemo.KrakenCollector
+dotnet run --project S3CandlesDemo.KrakenLatestCollector
 
 # Health check
 curl http://localhost:5099/health

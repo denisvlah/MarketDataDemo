@@ -30,7 +30,7 @@ services:
         condition: service_healthy
     restart: "no"
     volumes:
-      - ./S3CandlesDemo.KrakenCollector/kraken-collector-config.csv:/tmp/kraken-collector-config.csv:ro
+      - ./S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv:/tmp/kraken-collector-config.csv:ro
     entrypoint: >
       /bin/sh -c "
       mc alias set myminio http://minio:9000 minioadmin minioadmin;

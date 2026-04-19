@@ -4,7 +4,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.Logging;
 using S3CandlesDemo.Candles;
-using S3CandlesDemo.KrakenCollector;
+using S3CandlesDemo.KrakenLatestCollector;
 
 namespace S3CandlesDemo.Tests;
 

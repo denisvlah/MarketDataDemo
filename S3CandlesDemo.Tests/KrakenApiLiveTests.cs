@@ -2,7 +2,7 @@ using Kraken.Net.Clients;
 using Kraken.Net.Interfaces.Clients;
 using Microsoft.Extensions.Logging;
 using S3CandlesDemo.Candles;
-using S3CandlesDemo.KrakenCollector;
+using S3CandlesDemo.KrakenLatestCollector;
 using Xunit.Abstractions;
 
 namespace S3CandlesDemo.Tests;

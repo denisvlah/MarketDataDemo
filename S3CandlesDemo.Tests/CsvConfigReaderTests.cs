@@ -1,4 +1,4 @@
-using S3CandlesDemo.KrakenCollector;
+using S3CandlesDemo.KrakenLatestCollector;
 
 namespace S3CandlesDemo.Tests;
 

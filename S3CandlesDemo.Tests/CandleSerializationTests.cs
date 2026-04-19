@@ -1,5 +1,4 @@
 using S3CandlesDemo.Candles;
-using System;
 
 namespace S3CandlesDemo.Tests;
 

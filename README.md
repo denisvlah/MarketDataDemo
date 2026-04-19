@@ -49,7 +49,8 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
 |---------|-------------|
 | **S3CandlesDemo.Candles** | Core library — `ICandlesRepository`, binary serialization, filesystem & S3 implementations |
 | **S3CandlesDemo.Api** | ASP.NET Minimal API — HTTP endpoints for candle storage/retrieval |
-| **S3CandlesDemo.KrakenCollector** | One-shot batch job — collects OHLCV data from Kraken API and stores to S3 |
+| **S3CandlesDemo.KrakenLatestCollector** | One-shot batch job — collects latest OHLCV data from Kraken API and stores to S3 |
+| **S3CandlesDemo.KrakenHistoricalImporter** | One-shot batch job — imports full historical OHLCV data from Kraken's Google Drive archive into S3 |
 | **S3CandlesDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
 
 ## Docker Compose Deployment
@@ -77,7 +78,7 @@ docker compose restart kraken-collector
 open http://localhost:9001  # minioadmin / minioadmin
 ```
 
-The collector reads its schedule from `kraken-collector-config.csv` stored in the `candles-config` S3 bucket. On first start, `minio-setup` seeds it from `S3CandlesDemo.KrakenCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
+The collector reads its schedule from `kraken-collector-config.csv` stored in the `candles-config` S3 bucket. On first start, `minio-setup` seeds it from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
 
 ## Local Development (without Docker)
 
@@ -89,7 +90,7 @@ bash startMinio.sh
 dotnet run --project S3CandlesDemo.Api
 
 # Run collector
-dotnet run --project S3CandlesDemo.KrakenCollector
+dotnet run --project S3CandlesDemo.KrakenLatestCollector
 
 # Run tests
 dotnet test

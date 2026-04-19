@@ -1,4 +1,4 @@
-namespace S3CandlesDemo.KrakenCollector;
+namespace S3CandlesDemo.KrakenLatestCollector;
 
 /// <summary>
 /// Represents a single row from kraken-collector-config.csv.

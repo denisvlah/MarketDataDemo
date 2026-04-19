@@ -1,6 +1,6 @@
 using S3CandlesDemo.Candles;
 
-namespace S3CandlesDemo.KrakenCollector;
+namespace S3CandlesDemo.KrakenLatestCollector;
 
 /// <summary>
 /// Orchestrates candle collection: reads config, checks S3 for existing data,

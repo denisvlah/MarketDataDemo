@@ -31,7 +31,7 @@
   <ItemGroup>
     <ProjectReference Include="..\S3CandlesDemo.Candles\S3CandlesDemo.Candles.csproj" />
     <ProjectReference Include="..\S3CandlesDemo.Api\S3CandlesDemo.Api.csproj" />
-    <ProjectReference Include="..\S3CandlesDemo.KrakenCollector\S3CandlesDemo.KrakenCollector.csproj" />
+    <ProjectReference Include="..\S3CandlesDemo.KrakenLatestCollector\S3CandlesDemo.KrakenLatestCollector.csproj" />
   </ItemGroup>
 
 </Project>

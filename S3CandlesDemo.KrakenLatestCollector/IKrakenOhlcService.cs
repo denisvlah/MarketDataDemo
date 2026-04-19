@@ -1,6 +1,6 @@
 using S3CandlesDemo.Candles;
 
-namespace S3CandlesDemo.KrakenCollector;
+namespace S3CandlesDemo.KrakenLatestCollector;
 
 /// <summary>
 /// Represents a batch of candles fetched from the Kraken API.

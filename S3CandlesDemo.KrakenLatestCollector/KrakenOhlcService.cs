@@ -2,7 +2,7 @@ using Kraken.Net.Enums;
 using Kraken.Net.Interfaces.Clients;
 using S3CandlesDemo.Candles;
 
-namespace S3CandlesDemo.KrakenCollector;
+namespace S3CandlesDemo.KrakenLatestCollector;
 
 /// <summary>
 /// Wraps the KrakenExchange.Net SDK to fetch OHLC candle data.

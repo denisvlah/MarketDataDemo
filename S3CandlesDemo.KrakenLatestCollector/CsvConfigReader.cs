@@ -1,7 +1,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 
-namespace S3CandlesDemo.KrakenCollector;
+namespace S3CandlesDemo.KrakenLatestCollector;
 
 /// <summary>
 /// Reads and parses kraken-collector-config.csv into CollectorJobConfig entries.
