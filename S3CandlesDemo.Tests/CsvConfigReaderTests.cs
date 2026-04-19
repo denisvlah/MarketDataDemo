@@ -35,7 +35,7 @@ public class CsvConfigReaderTests
     public void ParseLines_EmptyLines_AreSkipped()
     {
         var lines = new[] { "", "BTCUSD,XBTUSD,60,2024-01-01", "", "  " };
-        var result = CsvConfigReader.ParseLines(lines);
+        var result = S3CandlesDemo.KrakenLatestCollector.CsvConfigReader.ParseLines(lines);
         Assert.Single(result);
         Assert.Equal("BTCUSD", result[0].AssetPair);
     }

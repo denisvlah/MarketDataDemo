@@ -53,7 +53,11 @@ public class MinioFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (Container != null) await Container.CleanUpAsync();
+        if (Container != null)
+        {
+            try { await Container.CleanUpAsync(); }
+            catch { /* Container may already be removed or zombie; ignore cleanup errors */ }
+        }
         Client?.Dispose();
     }
 }
