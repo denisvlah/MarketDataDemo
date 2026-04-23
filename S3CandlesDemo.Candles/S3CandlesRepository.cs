@@ -6,11 +6,149 @@ namespace S3CandlesDemo.Candles
 {
     public class S3CandlesRepository : CandlesRepositoryBase
     {
+        // Streams candles directly to S3 via multipart upload — no full buffering in memory or on disk.
+        // Only a ~5MB part buffer is held at any time, enabling gigabyte-scale streams.
+        public override async Task StoreCandlesAsync(string symbol, int intervalMinutes, IAsyncEnumerable<Candle> candles, CancellationToken cancellationToken = default)
+        {
+            const int minPartSize = 5 * 1024 * 1024; // 5MB — S3 minimum part size
+
+            // Upload to a temp key first; we don't know the final filename until all candles are consumed (need min/max timestamps)
+            string tempKey = KeyFromFileName($"{symbol}_{intervalMinutes}_{Guid.NewGuid()}.tmp");
+
+            var initResponse = await _s3Client.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
+            {
+                BucketName = _bucket,
+                Key = tempKey
+            }, cancellationToken);
+            string uploadId = initResponse.UploadId;
+
+            var partETags = new List<PartETag>();
+            DateTime? minTimestamp = null, maxTimestamp = null;
+            byte[] candleBuffer = new byte[Candle.CandleByteSize];
+            var partStream = new MemoryStream(minPartSize + Candle.CandleByteSize);
+            int partNumber = 1;
+
+            try
+            {
+                await foreach (var candle in candles.WithCancellation(cancellationToken))
+                {
+                    Candle.CandleToBytes(candle, candleBuffer);
+                    partStream.Write(candleBuffer, 0, candleBuffer.Length);
+
+                    if (!minTimestamp.HasValue || candle.Timestamp < minTimestamp.Value)
+                        minTimestamp = candle.Timestamp;
+                    if (!maxTimestamp.HasValue || candle.Timestamp > maxTimestamp.Value)
+                        maxTimestamp = candle.Timestamp;
+
+                    if (partStream.Position >= minPartSize)
+                    {
+                        partETags.Add(await UploadPartAsync(tempKey, uploadId, partNumber, partStream, cancellationToken));
+                        partNumber++;
+                        partStream.SetLength(0);
+                    }
+                }
+
+                // No candles received — abort
+                if (!minTimestamp.HasValue || !maxTimestamp.HasValue)
+                {
+                    await _s3Client.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
+                    {
+                        BucketName = _bucket, Key = tempKey, UploadId = uploadId
+                    }, cancellationToken);
+                    return;
+                }
+
+                // Upload remaining data as the final part
+                if (partStream.Position > 0)
+                {
+                    partETags.Add(await UploadPartAsync(tempKey, uploadId, partNumber, partStream, cancellationToken));
+                }
+
+                await _s3Client.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
+                {
+                    BucketName = _bucket,
+                    Key = tempKey,
+                    UploadId = uploadId,
+                    PartETags = partETags
+                }, cancellationToken);
+            }
+            catch
+            {
+                await _s3Client.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
+                {
+                    BucketName = _bucket, Key = tempKey, UploadId = uploadId
+                }, CancellationToken.None);
+                throw;
+            }
+            finally
+            {
+                partStream.Dispose();
+            }
+
+            // Compute the final key name now that we know the time range
+            var key = (symbol, intervalMinutes);
+            var start = minTimestamp.Value;
+            var end = maxTimestamp.Value;
+            int newVersion = 1;
+            if (_fileIndex.TryGetValue(key, out var existingFiles))
+            {
+                var intersecting = existingFiles.Where(f => f.End >= start && f.Start <= end);
+                if (intersecting.Any())
+                    newVersion = intersecting.Max(f => f.Version) + 1;
+            }
+
+            string newFileName = $"{symbol}_{intervalMinutes}_{start:yyyyMMdd'T'HHmmss}_{end:yyyyMMdd'T'HHmmss}_v{newVersion}.bin";
+            var finalKey = KeyFromFileName(newFileName);
+
+            // Server-side copy to final key, then delete temp (no data re-transfer)
+            await _s3Client.CopyObjectAsync(new CopyObjectRequest
+            {
+                SourceBucket = _bucket,
+                SourceKey = tempKey,
+                DestinationBucket = _bucket,
+                DestinationKey = finalKey
+            }, cancellationToken);
+            await _s3Client.DeleteObjectAsync(_bucket, tempKey, cancellationToken);
+
+            string fullPath = string.IsNullOrEmpty(_prefix) ? newFileName : $"{_prefix}/{newFileName}";
+            var info = new CandleFileInfoInternal(fullPath, start, end, newVersion);
+            _fileIndex.AddOrUpdate(key, k => new List<CandleFileInfoInternal> { info }, (k, list) => { list.Add(info); list.Sort((a, b) => a.Start.CompareTo(b.Start)); return list; });
+        }
+
+        private async Task<PartETag> UploadPartAsync(string key, string uploadId, int partNumber, MemoryStream partStream, CancellationToken cancellationToken)
+        {
+            long partSize = partStream.Position;
+            partStream.Position = 0;
+            var response = await _s3Client.UploadPartAsync(new UploadPartRequest
+            {
+                BucketName = _bucket,
+                Key = key,
+                UploadId = uploadId,
+                PartNumber = partNumber,
+                InputStream = partStream,
+                PartSize = partSize
+            }, cancellationToken);
+            return new PartETag(partNumber, response.ETag);
+        }
+
         public override async Task<IReadOnlyList<CandleFileInfo>> GetCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
         {
             // Rebuild index to ensure up-to-date
             BuildFileIndex();
             return await base.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
+        }
+
+        protected override async Task<long> GetFileSizeAsync(string path)
+        {
+            try
+            {
+                var key = path;
+                if (!string.IsNullOrEmpty(_prefix) && !path.StartsWith(_prefix))
+                    key = KeyFromFileName(GetFileName(path));
+                var meta = await _s3Client.GetObjectMetadataAsync(_bucket, key);
+                return meta.ContentLength;
+            }
+            catch { return 0; }
         }
 
         public override async Task RemoveCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)

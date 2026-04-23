@@ -108,11 +108,15 @@ app.MapDelete("/candles/{symbol}/{intervalMinutes}/files", async (string symbol,
 });
 
 // Remove a specific file by file info
-app.MapDelete("/candles/file", async (CandleFileInfo fileInfo, ICandlesRepository repo, CancellationToken cancellationToken) =>
+app.MapDelete("/candles/file", async ([Microsoft.AspNetCore.Mvc.FromBody] CandleFileInfo fileInfo, ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
     await repo.RemoveCandleFileAsync(fileInfo, cancellationToken);
     return Results.Ok();
 });
+
+// List all files in the repository with size and candle count
+app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
+    await repo.GetAllCandleFilesAsync(cancellationToken));
 
 app.Run();
 
@@ -120,6 +124,8 @@ app.Run();
 [JsonSerializable(typeof(List<Candle>))]
 [JsonSerializable(typeof(IReadOnlyList<CandleFileInfo>))]
 [JsonSerializable(typeof(CandleFileInfo))]
+[JsonSerializable(typeof(IReadOnlyList<CandleFileInfoDetail>))]
+[JsonSerializable(typeof(CandleFileInfoDetail))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext
 {
 

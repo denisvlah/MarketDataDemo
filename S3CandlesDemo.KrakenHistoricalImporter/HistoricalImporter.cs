@@ -21,6 +21,7 @@ public partial class HistoricalImporter
     private readonly ICandlesRepository _repo;
     private readonly HttpClient _httpClient;
     private readonly ILogger<HistoricalImporter> _logger;
+    private string? _googleApiKey;
 
     // Kraken's quarterly OHLCVT archive folder on Google Drive
     private const string DefaultFolderId = "15RSlNuW_h0kVM8or8McOGOMfHeBFvFGI";
@@ -51,6 +52,7 @@ public partial class HistoricalImporter
     {
         Directory.CreateDirectory(tempDir);
         folderId ??= DefaultFolderId;
+        _googleApiKey = googleApiKey;
 
         // List available quarterly archives from Google Drive
         _logger.LogInformation("Listing quarterly archives in Google Drive folder {FolderId}...", folderId);
@@ -201,15 +203,24 @@ public partial class HistoricalImporter
         var zipPath = Path.Combine(tempDir, archive.FileName);
         var extractDir = Path.Combine(tempDir, Path.GetFileNameWithoutExtension(archive.FileName));
 
-        // Download if not already present
+        // Download if not already present, or re-download if the cached file is corrupt
+        if (File.Exists(zipPath))
+        {
+            if (!GoogleDriveDownloader.IsValidZip(zipPath))
+            {
+                _logger.LogWarning("Cached archive {Archive} is corrupt, re-downloading.", archive.FileName);
+                File.Delete(zipPath);
+            }
+            else
+            {
+                _logger.LogInformation("Archive {Archive} already downloaded, reusing.", archive.FileName);
+            }
+        }
+
         if (!File.Exists(zipPath))
         {
             _logger.LogInformation("Downloading {Archive}...", archive.FileName);
-            await GoogleDriveDownloader.DownloadAsync(_httpClient, archive.GoogleDriveFileId, zipPath, _logger, ct);
-        }
-        else
-        {
-            _logger.LogInformation("Archive {Archive} already downloaded, reusing.", archive.FileName);
+            await GoogleDriveDownloader.DownloadAsync(_httpClient, archive.GoogleDriveFileId, zipPath, _logger, _googleApiKey, ct);
         }
 
         // Extract if not already done

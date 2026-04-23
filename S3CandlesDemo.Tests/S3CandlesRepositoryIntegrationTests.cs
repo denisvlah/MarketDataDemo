@@ -283,4 +283,69 @@ public class S3CandlesRepositoryIntegrationTests
         Assert.Equal(candles.Last().Timestamp, fetched.Last().Timestamp);
         await CleanUpAfterTest(bucket);
     }
+
+    [Fact]
+    public async Task StoreLargeStream_200MB_DirectToS3_Works()
+    {
+        var bucket = "test-bucket-large-stream";
+        await EnsureBucketAsync(bucket);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: "large", client: _fixture.Client);
+
+        string symbol = "BIGSTREAM";
+        int interval = 1;
+        // ~200MB: 200 * 1024 * 1024 / 52 ≈ 4,033,507 candles
+        int candleCount = (200 * 1024 * 1024) / Candles.Candle.CandleByteSize;
+        DateTime start = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        // Stream candles without materializing them all in memory
+        async IAsyncEnumerable<Candles.Candle> GenerateCandles()
+        {
+            for (int i = 0; i < candleCount; i++)
+            {
+                yield return new Candles.Candle
+                {
+                    Timestamp = start.AddMinutes(i * interval),
+                    Open = 100.0 + (i % 1000) * 0.01,
+                    High = 100.5 + (i % 1000) * 0.01,
+                    Low = 99.5 + (i % 1000) * 0.01,
+                    Close = 100.1 + (i % 1000) * 0.01,
+                    Volume = i * 10.0,
+                    TradeCount = i % 500
+                };
+            }
+            await Task.CompletedTask;
+        }
+
+        // Store — this exercises multipart upload with ~5MB parts
+        await repo.StoreCandlesAsync(symbol, interval, GenerateCandles());
+
+        // Verify the file exists in the index
+        var files = await repo.GetCandleFilesAsync(symbol, interval);
+        Assert.Single(files);
+
+        // Spot-check: fetch a small window from the middle and verify values
+        int midIndex = candleCount / 2;
+        DateTime fetchFrom = start.AddMinutes(midIndex * interval);
+        DateTime fetchTo = start.AddMinutes((midIndex + 99) * interval);
+        var fetched = new List<Candles.Candle>();
+        await foreach (var c in repo.FetchCandlesAsync(symbol, interval, fetchFrom, fetchTo))
+            fetched.Add(c);
+
+        Assert.Equal(100, fetched.Count);
+        Assert.Equal(fetchFrom, fetched.First().Timestamp);
+        Assert.Equal(fetchTo, fetched.Last().Timestamp);
+
+        // Verify a few field values from the middle candle
+        var sample = fetched[50];
+        int expectedI = midIndex + 50;
+        Assert.Equal(start.AddMinutes(expectedI * interval), sample.Timestamp);
+        Assert.Equal(100.0 + (expectedI % 1000) * 0.01, sample.Open, precision: 10);
+        Assert.Equal(100.5 + (expectedI % 1000) * 0.01, sample.High, precision: 10);
+        Assert.Equal(99.5 + (expectedI % 1000) * 0.01, sample.Low, precision: 10);
+        Assert.Equal(100.1 + (expectedI % 1000) * 0.01, sample.Close, precision: 10);
+        Assert.Equal(expectedI * 10.0, sample.Volume, precision: 5);
+        Assert.Equal(expectedI % 500, sample.TradeCount);
+
+        await CleanUpAfterTest(bucket);
+    }
 }

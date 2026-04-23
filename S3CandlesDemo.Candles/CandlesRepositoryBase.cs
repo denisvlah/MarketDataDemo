@@ -49,7 +49,7 @@ namespace S3CandlesDemo.Candles
             await StoreCandlesAsync(symbol, intervalMinutes, ToAsyncEnumerable(candles), cancellationToken);
         }
 
-        public async Task StoreCandlesAsync(string symbol, int intervalMinutes, IAsyncEnumerable<Candle> candles, CancellationToken cancellationToken = default)
+        public virtual async Task StoreCandlesAsync(string symbol, int intervalMinutes, IAsyncEnumerable<Candle> candles, CancellationToken cancellationToken = default)
         {
             string tempFileName = $"{symbol}_{intervalMinutes}_{Guid.NewGuid()}.tmp";
             string tempFilePath = PathCombine(_baseLocation, tempFileName);
@@ -107,8 +107,14 @@ namespace S3CandlesDemo.Candles
                 if (stream == null) continue;
                 while (true)
                 {
-                    int read = await stream.ReadAsync(buffer, 0, Candle.CandleByteSize, cancellationToken);
-                    if (read != Candle.CandleByteSize) break;
+                    int totalRead = 0;
+                    while (totalRead < Candle.CandleByteSize)
+                    {
+                        int read = await stream.ReadAsync(buffer, totalRead, Candle.CandleByteSize - totalRead, cancellationToken);
+                        if (read == 0) break;
+                        totalRead += read;
+                    }
+                    if (totalRead != Candle.CandleByteSize) break;
                     var candle = Candle.BytesToCandle(buffer);
                     if (candle.Timestamp > to) break;
                     lastCandleTimestamp = candle.Timestamp;
@@ -173,6 +179,37 @@ namespace S3CandlesDemo.Candles
             RemovePhysicalFile(fileInfo.Path);
             foreach (var kvp in _fileIndex) kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
             return Task.CompletedTask;
+        }
+
+        public virtual async Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)
+        {
+            var result = new List<CandleFileInfoDetail>();
+            foreach (var kvp in _fileIndex)
+            {
+                var (symbol, interval) = kvp.Key;
+                foreach (var file in kvp.Value)
+                {
+                    long fileSize = await GetFileSizeAsync(file.Path);
+                    long candleCount = fileSize / Candle.CandleByteSize;
+                    result.Add(new CandleFileInfoDetail
+                    {
+                        Symbol = symbol,
+                        IntervalMinutes = interval,
+                        Path = file.Path,
+                        Start = file.Start,
+                        End = file.End,
+                        Version = file.Version,
+                        FileSize = fileSize,
+                        CandleCount = candleCount
+                    });
+                }
+            }
+            return (IReadOnlyList<CandleFileInfoDetail>)result;
+        }
+
+        protected virtual Task<long> GetFileSizeAsync(string path)
+        {
+            try { return Task.FromResult(new FileInfo(path).Length); } catch { return Task.FromResult(0L); }
         }
 
         protected virtual void RemovePhysicalFile(string path)

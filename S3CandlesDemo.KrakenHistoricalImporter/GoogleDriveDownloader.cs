@@ -59,9 +59,13 @@ public static class GoogleDriveDownloader
     /// Downloads a file from Google Drive by file ID and saves it to the specified path.
     /// Uses the direct download URL format for large files.
     /// </summary>
-    public static async Task DownloadAsync(HttpClient httpClient, string fileId, string destinationPath, ILogger logger, CancellationToken ct = default)
+    public static async Task DownloadAsync(HttpClient httpClient, string fileId, string destinationPath, ILogger logger, string? apiKey = null, CancellationToken ct = default)
     {
-        var url = $"https://drive.google.com/uc?export=download&id={fileId}&confirm=t";
+        // Use Drive API v3 for reliable downloads — the legacy /uc?export=download URL
+        // returns an HTML virus-scan warning page for large files instead of the actual content.
+        var url = !string.IsNullOrEmpty(apiKey)
+            ? $"https://www.googleapis.com/drive/v3/files/{fileId}?alt=media&key={apiKey}"
+            : $"https://drive.google.com/uc?export=download&id={fileId}&confirm=t";
 
         logger.LogInformation("Downloading Google Drive file {FileId} to {Path}...", fileId, destinationPath);
 
@@ -99,6 +103,24 @@ public static class GoogleDriveDownloader
         }
 
         logger.LogInformation("Download complete: {TotalMB:F1} MB", totalRead / 1048576.0);
+    }
+
+    /// <summary>
+    /// Returns true if the file appears to be a valid ZIP archive.
+    /// </summary>
+    public static bool IsValidZip(string zipPath)
+    {
+        try
+        {
+            using var archive = ZipFile.OpenRead(zipPath);
+            // Access Entries to force reading the central directory
+            _ = archive.Entries.Count;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
