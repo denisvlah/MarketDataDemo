@@ -134,7 +134,7 @@ namespace S3CandlesDemo.Candles
         public override async Task<IReadOnlyList<CandleFileInfo>> GetCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
         {
             // Rebuild index to ensure up-to-date
-            BuildFileIndex();
+            await BuildFileIndexAsync();
             return await base.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
         }
 
@@ -175,7 +175,7 @@ namespace S3CandlesDemo.Candles
             _bucket = bucket;
             _prefix = prefix?.Trim('/');
             _s3Client = client ?? new AmazonS3Client();
-            BuildFileIndex();
+            BuildFileIndexAsync().GetAwaiter().GetResult();
         }
 
         private string KeyFromFileName(string fileName)
@@ -184,13 +184,13 @@ namespace S3CandlesDemo.Candles
             return $"{_prefix}/{fileName}";
         }
 
-        protected override IEnumerable<string> EnumerateFiles()
+        protected override async IAsyncEnumerable<string> EnumerateFilesAsync()
         {
             var request = new ListObjectsV2Request { BucketName = _bucket, Prefix = _prefix };
             ListObjectsV2Response? response;
             do
             {
-                response = _s3Client.ListObjectsV2Async(request).GetAwaiter().GetResult();
+                response = await _s3Client.ListObjectsV2Async(request);
                 foreach (var obj in response.S3Objects)
                     if (obj.Key.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
                         yield return obj.Key;

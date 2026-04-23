@@ -17,10 +17,10 @@ namespace S3CandlesDemo.Candles
             _baseLocation = baseLocation;
         }
 
-        protected void BuildFileIndex()
+        protected async Task BuildFileIndexAsync()
         {
             _fileIndex.Clear();
-            foreach (var file in EnumerateFiles())
+            await foreach (var file in EnumerateFilesAsync())
             {
                 var name = GetFileName(file);
                 var match = FilePattern.Match(name);
@@ -38,7 +38,7 @@ namespace S3CandlesDemo.Candles
                 kvp.Value.Sort((a, b) => a.Start.CompareTo(b.Start));
         }
 
-        protected abstract IEnumerable<string> EnumerateFiles();
+        protected abstract IAsyncEnumerable<string> EnumerateFilesAsync();
         protected abstract string GetFileName(string filePathOrKey);
         protected abstract Task<Stream> OpenWriteStreamAsync(string tempPath);
         protected abstract Task MoveTempToFinalAsync(string tempPath, string finalPath);

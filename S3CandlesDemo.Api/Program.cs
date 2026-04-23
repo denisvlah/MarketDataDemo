@@ -114,11 +114,24 @@ app.MapDelete("/candles/file", async ([Microsoft.AspNetCore.Mvc.FromBody] Candle
     return Results.Ok();
 });
 
+// List available symbols with their intervals
+app.MapGet("/candles/symbols", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
+{
+    var files = await repo.GetAllCandleFilesAsync(cancellationToken);
+    return files
+        .GroupBy(f => f.Symbol)
+        .Select(g => new SymbolIntervals(g.Key, g.Select(f => f.IntervalMinutes).Distinct().OrderBy(i => i).ToArray()))
+        .OrderBy(s => s.Symbol)
+        .ToList();
+});
+
 // List all files in the repository with size and candle count
 app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
     await repo.GetAllCandleFilesAsync(cancellationToken));
 
 app.Run();
+
+record SymbolIntervals(string Symbol, int[] Intervals);
 
 [JsonSerializable(typeof(Candle))]
 [JsonSerializable(typeof(List<Candle>))]
@@ -126,6 +139,8 @@ app.Run();
 [JsonSerializable(typeof(CandleFileInfo))]
 [JsonSerializable(typeof(IReadOnlyList<CandleFileInfoDetail>))]
 [JsonSerializable(typeof(CandleFileInfoDetail))]
+[JsonSerializable(typeof(List<SymbolIntervals>))]
+[JsonSerializable(typeof(SymbolIntervals))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext
 {
 

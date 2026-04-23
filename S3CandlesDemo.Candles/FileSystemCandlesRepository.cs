@@ -11,9 +11,11 @@ namespace S3CandlesDemo.Candles
 
         // Inherits GetCandleFilesAsync, RemoveCandleFilesAsync, RemoveCandleFileAsync from base
 
-        protected override IEnumerable<string> EnumerateFiles()
+        protected override async IAsyncEnumerable<string> EnumerateFilesAsync()
         {
-            return Directory.EnumerateFiles(_baseLocation, "*.bin");
+            foreach (var file in Directory.EnumerateFiles(_baseLocation, "*.bin"))
+                yield return file;
+            await Task.CompletedTask;
         }
 
         protected override string GetFileName(string filePathOrKey)

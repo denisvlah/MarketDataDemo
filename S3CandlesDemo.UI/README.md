@@ -8,7 +8,7 @@ A frontend SPA to display OHLCV candlestick charts for data stored in the S3Cand
 1.3) **TradingView Lightweight Charts v4** (`lightweight-charts`) for candlestick + volume visualization.
 
 ## 2. Data Source & API Integration
-2.1) The UI connects to the ASP.NET API (default `http://localhost:5062`). The base URL should be configurable via an environment variable (`VITE_API_BASE_URL`).
+2.1) The UI connects to the ASP.NET API (default `http://localhost:5044`). The base URL should be configurable via an environment variable (`VITE_API_BASE_URL`).
 2.2) On startup, call `GET /candles/files` to discover all available **symbols** and **intervals** and populate the dropdowns dynamically — no hardcoded symbol lists.
 2.3) Fetch candle data via `GET /candles/{symbol}/{intervalMinutes}?from={iso}&to={iso}`. The response is a JSON array of `{ t, o, h, l, c, v, n }`.
 
@@ -39,7 +39,7 @@ A frontend SPA to display OHLCV candlestick charts for data stored in the S3Cand
 ## 7. Build & Run
 7.1) `npm run dev` for local development with hot reload.
 7.2) `npm run build` produces a static bundle suitable for serving from any static host or Docker container.
-7.3) In development mode, Vite's dev server **must** proxy all `/candles` requests to the API backend (default `http://localhost:5062`). No CORS configuration on the backend is needed — the proxy handles it. Configure this in `vite.config.ts` under `server.proxy`.
+7.3) In development mode, Vite's dev server **must** proxy all `/candles` requests to the API backend (default `http://localhost:5044`). No CORS configuration on the backend is needed — the proxy handles it. Configure this in `vite.config.ts` under `server.proxy`.
 
 # React + TypeScript + Vite
 
