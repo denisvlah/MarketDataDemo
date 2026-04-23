@@ -49,6 +49,10 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
     }
 });
 
+// Poll S3 every minute to refresh the in-memory file index.
+// This avoids rebuilding the index on every API request while still catching externally added files.
+builder.Services.AddHostedService<FileIndexPollingService>();
+
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
@@ -150,4 +154,30 @@ namespace S3CandlesDemo.Api
 {
     // Expose Program for WebApplicationFactory<T> in integration tests
     public partial class Program { }
+}
+
+// Rebuilds the repository's in-memory file index every minute so the API
+// always reflects files added externally (e.g. by the collector or importer)
+// without the overhead of a per-request S3 ListObjects call.
+public class FileIndexPollingService(ICandlesRepository repo, ILogger<FileIndexPollingService> logger) : BackgroundService
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(Interval, stoppingToken);
+            try
+            {
+                await repo.RebuildFileIndexAsync(stoppingToken);
+                logger.LogDebug("File index rebuilt.");
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to rebuild file index.");
+            }
+        }
+    }
 }

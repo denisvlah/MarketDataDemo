@@ -44,7 +44,15 @@ This is a **C# .NET 10.0 project** that implements efficient OHLCV (Open, High, 
 - Store operations accept both `IEnumerable<Candle>` and `IAsyncEnumerable<Candle>`
 - No temporary allocations; uses fixed 52-byte buffer for serialization
 
-### 4. S3 Configuration
+### 4. File Index Polling (S3)
+- **Location**: `FileIndexPollingService` in [../S3CandlesDemo.Api/Program.cs](../S3CandlesDemo.Api/Program.cs)
+- The `S3CandlesRepository` builds its in-memory `_fileIndex` once on startup via `BuildFileIndexAsync()`
+- A background `IHostedService` (`FileIndexPollingService`) calls `ICandlesRepository.RebuildFileIndexAsync()` every **1 minute**
+- This keeps the index current without the overhead of calling `S3:ListObjects` on every API request
+- `RebuildFileIndexAsync()` is exposed on `ICandlesRepository` and implemented in `CandlesRepositoryBase` (delegates to `BuildFileIndexAsync()`)
+- Do **not** add per-request index rebuilds; always rely on the polling service or an explicit store operation (which updates `_fileIndex` directly)
+
+### 5. S3 Configuration
 - **Location**: [../S3CandlesDemo.Api/appsettings.json](../S3CandlesDemo.Api/appsettings.json)
 - **Dev Configuration**: Local MinIO (Docker) via `minio-dockercompose.yaml` and `startMinio.sh`
 - Required settings: `S3Candles:Bucket`, `S3Candles:Prefix`, `S3Candles:AWS:{AccessKey,SecretKey,Region}`

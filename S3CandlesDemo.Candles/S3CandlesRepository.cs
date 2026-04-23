@@ -131,13 +131,6 @@ namespace S3CandlesDemo.Candles
             return new PartETag(partNumber, response.ETag);
         }
 
-        public override async Task<IReadOnlyList<CandleFileInfo>> GetCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
-        {
-            // Rebuild index to ensure up-to-date
-            await BuildFileIndexAsync();
-            return await base.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
-        }
-
         protected override async Task<long> GetFileSizeAsync(string path)
         {
             try

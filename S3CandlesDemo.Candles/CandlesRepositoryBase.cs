@@ -38,6 +38,8 @@ namespace S3CandlesDemo.Candles
                 kvp.Value.Sort((a, b) => a.Start.CompareTo(b.Start));
         }
 
+        public Task RebuildFileIndexAsync(CancellationToken cancellationToken = default) => BuildFileIndexAsync();
+
         protected abstract IAsyncEnumerable<string> EnumerateFilesAsync();
         protected abstract string GetFileName(string filePathOrKey);
         protected abstract Task<Stream> OpenWriteStreamAsync(string tempPath);

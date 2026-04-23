@@ -96,6 +96,15 @@ dotnet run --project S3CandlesDemo.KrakenLatestCollector
 dotnet test
 ```
 
+## S3 File Index Polling
+
+The API maintains an in-memory index of all candle files stored in S3 for fast query processing (no `ListObjects` call per request). The index is built once at startup and then refreshed every **1 minute** by a background service (`FileIndexPollingService`).
+
+This means:
+- Files added externally (e.g. by the collector or importer) will be visible to the API within ~1 minute.
+- Write operations through the API update the index immediately and do not wait for the next poll.
+- The polling interval can be adjusted in `FileIndexPollingService` in `S3CandlesDemo.Api/Program.cs`.
+
 ## Additional Recommendations
 
 - **Testing**: Define unit and integration tests for all major components, especially for file operations and API endpoints.

@@ -23,5 +23,7 @@
 
         public Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult((IReadOnlyList<CandleFileInfoDetail>)Array.Empty<CandleFileInfoDetail>());
+
+        public Task RebuildFileIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

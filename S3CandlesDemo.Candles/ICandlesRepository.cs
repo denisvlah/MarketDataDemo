@@ -20,6 +20,9 @@ namespace S3CandlesDemo.Candles
 
         // List all files across all symbols/intervals
         Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default);
+
+        // Rebuild the in-memory file index from the underlying storage
+        Task RebuildFileIndexAsync(CancellationToken cancellationToken = default);
     }
 
     // Expose CandleFileInfo for consumers
