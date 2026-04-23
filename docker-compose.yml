@@ -31,6 +31,7 @@ services:
     restart: "no"
     volumes:
       - ./S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv:/tmp/kraken-collector-config.csv:ro
+      - ./S3CandlesDemo.KrakenHistoricalImporter/kraken-historical-config.csv:/tmp/kraken-historical-config.csv:ro
     entrypoint: >
       /bin/sh -c "
       mc alias set myminio http://minio:9000 minioadmin minioadmin;
@@ -38,7 +39,9 @@ services:
       mc mb myminio/candles-config --ignore-existing;
       mc stat myminio/candles-config/kraken-collector-config.csv > /dev/null 2>&1 || \
         mc cp /tmp/kraken-collector-config.csv myminio/candles-config/kraken-collector-config.csv;
-      echo 'Buckets ready, config CSV seeded';
+      mc stat myminio/candles-config/kraken-historical-config.csv > /dev/null 2>&1 || \
+        mc cp /tmp/kraken-historical-config.csv myminio/candles-config/kraken-historical-config.csv;
+      echo 'Buckets ready, config CSVs seeded';
       "
 
   # ── Candles HTTP API ──────────────────────────────────────────────────
@@ -84,5 +87,31 @@ services:
       S3Candles__ConfigBucket: candles-config
       S3Candles__ConfigKey: kraken-collector-config.csv
 
+  # ── Kraken historical importer (one-shot batch job) ──────────────────
+  kraken-historical-importer:
+    build:
+      context: .
+      dockerfile: Dockerfile.historical-importer
+    container_name: s3candles-historical-importer
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    restart: "no"
+    volumes:
+      - historical_downloads:/tmp/kraken-historical
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      S3Candles__Bucket: candles-data
+      S3Candles__Prefix: candles
+      S3Candles__AWS__AccessKey: minioadmin
+      S3Candles__AWS__SecretKey: minioadmin
+      S3Candles__AWS__Region: us-east-1
+      S3Candles__AWS__Url: http://minio:9000
+      S3Candles__ConfigBucket: candles-config
+      S3Candles__ConfigKey: kraken-historical-config.csv
+      HistoricalImport__TempDirectory: /tmp/kraken-historical
+      HistoricalImport__GoogleApiKey: ${GOOGLE_API_KEY:?Set GOOGLE_API_KEY env var}
+
 volumes:
   minio_data:
+  historical_downloads:
