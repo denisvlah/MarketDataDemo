@@ -39,4 +39,4 @@ A frontend SPA to display OHLCV candlestick charts for data stored in the S3Cand
 ## 7. Build & Run
 7.1) `npm run dev` for local development with hot reload.
 7.2) `npm run build` produces a static bundle suitable for serving from any static host or Docker container.
-7.3) The API must have CORS enabled for the UI origin during development (or use Vite's proxy config to forward `/candles` → API).
+7.3) In development mode, Vite's dev server **must** proxy all `/candles` requests to the API backend (default `http://localhost:5062`). No CORS configuration on the backend is needed — the proxy handles it. Configure this in `vite.config.ts` under `server.proxy`.
