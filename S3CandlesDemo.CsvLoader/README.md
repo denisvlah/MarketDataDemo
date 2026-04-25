@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CsvLoader is a service designed to efficiently load historical OHLCV (Open, High, Low, Close, Volume) candle data from CSV files stored in AWS S3 and merge them into the S3-backed candles repository. It automatically detects gaps in existing candle data and fills them using the provided CSV files.
+The CsvLoader is a service designed to efficiently load historical OHLCV (Open, High, Low, Close, Volume) candle data from CSV files stored in AWS S3 and merge them into the S3-backed candles repository. It automatically detects gaps in existing candle data and fills only those gaps using the provided CSV files.
 
 ## Architecture & Design
 
@@ -82,10 +82,10 @@ This single configuration source eliminates symbol synchronization issues across
 
 1. **Queries the candles repository** to identify existing time ranges for each (symbol, interval) pair
 2. **Detects gaps** in the existing data (missing time periods)
-3. **Scans CSV bucket** for files that cover detected gaps
-4. **Streams matching CSV files** directly from S3, parsing only relevant records
-5. **Merges new candles** into the repository without re-downloading or modifying existing data
-6. **Updates version numbers** for affected candle files as per repository versioning policy
+3. **Matches CSV files to gaps** by comparing each gap's time range with CSV filename ranges (no files are downloaded at this stage)
+4. **Streams matching CSV files** directly from S3, seeking to the gap start and parsing only relevant records
+5. **Stores gap candles** into the repository via `ICandlesRepository.StoreCandlesAsync()`
+6. **Versioning** is handled automatically by the repository implementation
 
 ## Sylvan.Data.Csv Library
 
@@ -131,8 +131,8 @@ On application start:
 1. App initializes and loads configuration from S3
 2. Gap-filling process **starts immediately** in the background
 3. `/health` endpoint becomes available for monitoring
-4. App remains running until all symbols have been processed (success or failure)
-5. Exits with code `0` regardless of outcome
+4. App remains running until all symbols have been processed or a critical error occurs
+5. Exits with code `0` on success, or non-zero on failure (see [Exit Codes](#exit-codes))
 
 ### Health Check Behavior
 The `/health` endpoint returns:
@@ -245,17 +245,44 @@ The first three columns (Asset pair, Kraken pair, Interval) are used by the CSV 
 
 ## Error Handling & Resilience
 
-- **Invalid CSV format**: Malformed records are logged with line number and skipped; file processing continues
-- **Timestamp/numeric errors**: Gracefully logged; record skipped; next record processed
-- **Missing symbol**: If no CSV file exists for a detected gap, logged as warning; processing continues for other symbols
-- **S3 failures**: Transient failures trigger exponential backoff retry (3 attempts); persistent failures are logged and gap-filling skipped for that symbol
-- **Repository write errors**: Failed candle merges are logged; processing continues for other gaps
-- **Incomplete gaps**: Not all gaps may be filled if corresponding CSV files don't exist (e.g., most recent candles are typically missing from CSV sources); this is expected behavior
-- **Partial completion**: If some symbols load successfully and others fail, the app still exits with code 0
+- **S3 I/O errors on CSV open**: Retried with exponential backoff (3 attempts) before giving up on that file
+- **Runtime errors during gap-filling**: If an unrecoverable error occurs mid-processing (e.g., corrupted stream, repository write failure), the app exits immediately with a non-zero exit code. The scheduler is expected to restart the app with a short delay; already-filled gaps will be skipped on the next run since the repository is up to date for those ranges
+- **Missing CSV coverage**: If no CSV file covers a detected gap, logged as warning; processing continues for other symbols/intervals
+- **Incomplete gaps**: Not all gaps may be filled if corresponding CSV files don't exist (e.g., most recent candles are typically missing from CSV sources); this is expected behavior and results in exit code 0
+- **No retry within a run**: Apart from the initial CSV file open retry, failures are not retried within the same run. Recovery relies on the scheduler restarting the app
 
 ## Exit Codes
 
-- **0**: App completed execution (successfully filled gaps, partial completion, or no gaps found)
-  - Most recent candles may be missing from CSV files — this is expected and does not cause non-zero exit
+- **0**: All gap-filling completed successfully, or no gaps were found. Partial coverage due to missing CSV files is considered success
 - **1**: Critical startup failure (invalid configuration, S3 unreachable, cannot load config file)
-- **2**: Critical runtime error (app crashed during gap-filling)
+- **2**: Runtime error during gap-filling (I/O failure, corrupted data, repository write error). The scheduler should restart the app with a short delay — already-filled gaps will be skipped automatically
+
+## Implementation Details
+
+This project uses the **S3CandlesDemo.Candles** library (`ICandlesRepository` / `CandlesRepositoryBase`) for all candle storage and gap detection.
+
+### Startup Sequence
+1. Load configuration from the unified config file in S3 (`kraken-collector-config.csv`)
+2. Build the repository file index via `ICandlesRepository.RebuildFileIndexAsync()`
+3. List all CSV file names from the `csv` S3 bucket (files are **not** downloaded — only their names are read to extract the time range from the filename)
+4. Begin gap-filling for each (symbol, interval) pair
+
+### Gap Detection
+For each (symbol, interval) pair defined in the config, the loader calls `ICandlesRepository.GetGaps(symbol, intervalMinutes, minDate)`. This method inspects the in-memory file index and returns a list of `(Start, End)` ranges where no binary candle files exist. The gap list is computed purely from file metadata — no candle data is read at this stage.
+
+### CSV-to-Gap Matching
+Each CSV file's time range is encoded in its filename: `{Symbol}_{IntervalMinutes}_{Start}_{End}.csv`. The loader compares each gap's `(Start, End)` with the available CSV file ranges to find files that overlap the gap.
+
+### Streaming & Seeking
+When a matching CSV file is found, it is opened as a stream directly from S3 (never downloaded to disk). The stream is wrapped as `IAsyncEnumerable<Candle>` using the Sylvan CSV reader. The enumerator is advanced (skipping records) until the gap's start timestamp is reached, then records are fed into `ICandlesRepository.StoreCandlesAsync()` until the gap's end timestamp.
+
+### Enumerator Reuse Across Gaps
+A single CSV file may cover multiple consecutive gaps (e.g., if some gaps were partially filled by earlier runs). To avoid re-opening and re-seeking the same file, the loader **keeps the `IAsyncEnumerable<Candle>` enumerator and its last-read timestamp alive** between gaps. If the next gap falls within the same CSV file's range, iteration simply continues from where it left off. A new CSV stream is opened only when the current enumerator is exhausted or the next gap requires a different file.
+
+### Parallelism
+The unit of work that can be parallelized is a **(symbol, interval) pair**. Each pair's gap-filling runs independently. The degree of parallelism is controlled by the `WORKERS` environment variable. No coordination is needed between workers since each operates on a distinct (symbol, interval) key.
+
+### Versioning
+Candle file versioning is handled entirely by `ICandlesRepository`. When `StoreCandlesAsync()` writes a new binary file for a time range that overlaps existing files, the repository automatically increments the version number. The loader does not manage versions directly.
+
+
