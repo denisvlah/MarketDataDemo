@@ -6,6 +6,8 @@ namespace S3CandlesDemo.Candles
     public abstract partial class CandlesRepositoryBase : ICandlesRepository
     {
         protected readonly string _baseLocation;
+        
+        // TODO: use here the sorted list that is sorted by start time ASC and verson DESC.
         protected readonly ConcurrentDictionary<(string symbol, int interval), List<CandleFileInfoInternal>> _fileIndex = new();
         private static readonly Regex FilePattern = FilePatternRegex();
 
@@ -18,8 +20,8 @@ namespace S3CandlesDemo.Candles
         }
 
         protected async Task BuildFileIndexAsync()
-        {
-            _fileIndex.Clear();
+        {            
+            var keys = new HashSet<(string symbol, int interval)>();
             await foreach (var file in EnumerateFilesAsync())
             {
                 var name = GetFileName(file);
@@ -32,8 +34,15 @@ namespace S3CandlesDemo.Candles
                 var version = int.Parse(match.Groups["version"].Value);
                 var info = new CandleFileInfoInternal(file, start, end, version);
                 var key = (symbol, interval);
+                keys.Add(key);
                 _fileIndex.AddOrUpdate(key, k => new List<CandleFileInfoInternal> { info }, (k, list) => { list.Add(info); return list; });
             }
+            foreach( var kvp in _fileIndex)
+            {
+                if (!keys.Contains(kvp.Key))
+                    _fileIndex.TryRemove(kvp.Key, out _);
+            }
+            
             foreach (var kvp in _fileIndex)
                 kvp.Value.Sort((a, b) => a.Start.CompareTo(b.Start));
         }
@@ -166,21 +175,20 @@ namespace S3CandlesDemo.Candles
             return Task.FromResult((IReadOnlyList<CandleFileInfo>)files.Select(f => f.ToPublic()).ToList());
         }
 
-        public virtual Task RemoveCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
+        public virtual async Task RemoveCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
         {
             var key = (symbol, intervalMinutes);
             if (_fileIndex.TryRemove(key, out var files))
                 foreach (var file in files)
-                    RemovePhysicalFile(file.Path);
+                    await RemovePhysicalFile(file.Path);
 
-            return Task.CompletedTask;
+            return;
         }
 
-        public virtual Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default)
+        public virtual async Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default)
         {
-            RemovePhysicalFile(fileInfo.Path);
+            await RemovePhysicalFile(fileInfo.Path);
             foreach (var kvp in _fileIndex) kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
-            return Task.CompletedTask;
         }
 
         public virtual async Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)
@@ -214,13 +222,31 @@ namespace S3CandlesDemo.Candles
             try { return Task.FromResult(new FileInfo(path).Length); } catch { return Task.FromResult(0L); }
         }
 
-        protected virtual void RemovePhysicalFile(string path)
+        protected virtual Task RemovePhysicalFile(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); }
-            catch
+            catch { }
+            return Task.CompletedTask;
+        }
+
+        public List<(DateTime Start, DateTime End)> GetGaps(string symbol, int intervalMinutes, DateTime minDate)
+        {
+            var key = (symbol, intervalMinutes);
+            if (!_fileIndex.TryGetValue(key, out var files))
+                return new List<(DateTime Start, DateTime End)> { (minDate, DateTime.MaxValue) };
+
+            var gaps = new List<(DateTime Start, DateTime End)>();
+            DateTime current = minDate;
+            foreach (var file in files.OrderBy(f => f.Start))
             {
-                // ignored
+                if (file.End < current) continue; // file is completely before current
+                if (file.Start > current)
+                    gaps.Add((current, file.Start)); // gap between current and start of file
+                current = file.End > current ? file.End : current; // move current forward
             }
+            if (current < DateTime.MaxValue)
+                gaps.Add((current, DateTime.MaxValue)); // gap from end of last file to infinity
+            return gaps;
         }
     }
 }

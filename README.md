@@ -49,8 +49,9 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
 |---------|-------------|
 | **S3CandlesDemo.Candles** | Core library — `ICandlesRepository`, binary serialization, filesystem & S3 implementations |
 | **S3CandlesDemo.Api** | ASP.NET Minimal API — HTTP endpoints for candle storage/retrieval |
-| **S3CandlesDemo.KrakenLatestCollector** | One-shot batch job — collects latest OHLCV data from Kraken API and stores to S3 |
+| **S3CandlesDemo.KrakenLatestCollector** | Scheduled batch job — collects latest OHLCV data from Kraken API and stores to S3 |
 | **S3CandlesDemo.KrakenHistoricalImporter** | One-shot batch job — imports full historical OHLCV data from Kraken's Google Drive archive into S3 |
+| **S3CandlesDemo.CsvLoader** | Scheduled batch job — fills gaps in candle data by streaming CSV files from S3 (AOT-compiled minimal API) |
 | **S3CandlesDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
 
 ## Docker Compose Deployment
@@ -60,9 +61,10 @@ A full-stack `docker-compose.yml` runs all services together with MinIO as the S
 | Service | Purpose | Port |
 |---------|---------|------|
 | `minio` | S3-compatible storage (persistent volume) | `9000` (API), `9001` (console) |
-| `minio-setup` | Init container — creates buckets, seeds `kraken-collector-config.csv` | — |
+| `minio-setup` | Init container — creates buckets, seeds shared config files | — |
 | `api` | Candles HTTP API | `5044` |
-| `kraken-collector` | Kraken data collector (runs once, then exits) | `5099` (health) |
+| `kraken-collector` | Kraken data collector (scheduled daily job) | `5099` (health) |
+| `csv-loader` | CSV gap-filling loader (scheduled daily job, AOT-compiled) | `5043` (health) |
 
 ```bash
 # Start everything
@@ -78,7 +80,11 @@ docker compose restart kraken-collector
 open http://localhost:9001  # minioadmin / minioadmin
 ```
 
-The collector reads its schedule from `kraken-collector-config.csv` stored in the `candles-config` S3 bucket. On first start, `minio-setup` seeds it from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
+**Unified Configuration Approach:**
+All scheduled jobs (Kraken collector, CSV loader) read symbols and intervals from a **single configuration file** stored in the `candles-config` S3 bucket:
+- **`kraken-collector-config.csv`** — Defines all asset pairs and intervals for both Kraken data collection and CSV gap-filling
+
+This file is seeded by `minio-setup` on first start from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
 
 ## Local Development (without Docker)
 

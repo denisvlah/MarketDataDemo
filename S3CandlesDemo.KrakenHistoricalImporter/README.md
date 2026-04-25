@@ -18,7 +18,7 @@ Imports **historical** OHLCVT candle data from [Kraken's quarterly Google Drive 
 
 ### Configuration Source
 
-A CSV file defines the import jobs, **identical format** to the one used by `S3CandlesDemo.KrakenLatestCollector`. It has 4 columns (no header row):
+The importer uses the **unified configuration file** shared across all projects (`kraken-collector-config.csv`), with identical format to `S3CandlesDemo.KrakenLatestCollector`. It has 4 columns (no header row):
 
 | Column | Type | Description | Example |
 |--------|------|-------------|---------|
@@ -27,7 +27,7 @@ A CSV file defines the import jobs, **identical format** to the one used by `S3C
 | Interval | int | Candle size in minutes | `60` |
 | Start date | date | Earliest date to import from (`yyyy-MM-dd`) | `2023-01-01` |
 
-The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3Candles:ConfigKey` settings. If these settings are empty, the app falls back to a **local file** (`kraken-historical-config.csv`) in the project output directory.
+The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3Candles:ConfigKey` settings. If these settings are empty, the app falls back to a **local file** in the project output directory. All projects (Kraken Collector, Historical Importer, CSV Loader) share this single `kraken-collector-config.csv` configuration.
 
 ### `appsettings.json`
 
@@ -37,7 +37,7 @@ The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3C
     "Bucket": "candles-data",
     "Prefix": "kraken-candles",
     "ConfigBucket": "candles-config",
-    "ConfigKey": "kraken-historical-config.csv",
+    "ConfigKey": "kraken-collector-config.csv",
     "AWS": {
       "AccessKey": "...",
       "SecretKey": "...",

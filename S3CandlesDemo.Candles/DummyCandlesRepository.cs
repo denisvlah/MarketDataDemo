@@ -25,5 +25,10 @@
             => Task.FromResult((IReadOnlyList<CandleFileInfoDetail>)Array.Empty<CandleFileInfoDetail>());
 
         public Task RebuildFileIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public List<(DateTime Start, DateTime End)> GetGaps(string symbol, int intervalMinutes, DateTime minDate)
+        {
+            return new List<(DateTime Start, DateTime End)>();
+        }
     }
 }

@@ -23,6 +23,15 @@ namespace S3CandlesDemo.Candles
 
         // Rebuild the in-memory file index from the underlying storage
         Task RebuildFileIndexAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Calculate gaps in the stored candles for a given symbol and interval, starting from a minimum date. This can be used to identify missing data ranges that need to be backfilled.
+        /// </summary>
+        /// <param name="symbol">The symbol for which to calculate gaps.</param>
+        /// <param name="intervalMinutes">The interval in minutes for the candles.</param>
+        /// <param name="minDate">The minimum date from which to start calculating gaps.</param>
+        /// <returns>A list of tuples representing the start and end of each gap.</returns>
+        List<(DateTime Start, DateTime End)> GetGaps(string symbol, int intervalMinutes, DateTime minDate);
     }
 
     // Expose CandleFileInfo for consumers
@@ -45,4 +54,5 @@ namespace S3CandlesDemo.Candles
         public long FileSize { get; set; }
         public long CandleCount { get; set; }
     }
+    
 }

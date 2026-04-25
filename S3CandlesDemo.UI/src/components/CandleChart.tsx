@@ -92,7 +92,7 @@ export default function CandleChart({ candles }: Props) {
         secondsVisible: false,
       },
       width: containerRef.current.clientWidth,
-      height: 500,
+      height: containerRef.current.clientHeight,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -120,7 +120,10 @@ export default function CandleChart({ candles }: Props) {
 
     const handleResize = () => {
       if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+        chart.applyOptions({ 
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -158,8 +161,8 @@ export default function CandleChart({ candles }: Props) {
   const color = ohlcv?.isUp ? '#26a69a' : '#ef5350';
 
   return (
-    <div style={{ position: 'relative', width: '100%', minHeight: 500 }}>
-      <div ref={containerRef} style={{ width: '100%', minHeight: 500 }} />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {ohlcv && (
         <div
           style={{

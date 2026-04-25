@@ -53,7 +53,7 @@ export default function App() {
 
   return (
     <MantineProvider defaultColorScheme="dark">
-      <Stack gap={0} style={{ height: '100vh' }}>
+      <Stack gap={0} style={{ height: '100vh', overflow: 'hidden' }}>
         <ChartToolbar
           symbols={symbols}
           intervals={intervals}
@@ -69,15 +69,15 @@ export default function App() {
           onLoad={loadCandles}
         />
 
-        <div style={{ flex: 1, position: 'relative', padding: '0 16px 16px' }}>
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <LoadingOverlay visible={loading} />
           {error && (
-            <Center h={500}>
+            <Center h="100%" w="100%">
               <Text c="red" size="lg">{error}</Text>
             </Center>
           )}
           {!error && !loading && candles.length === 0 && (
-            <Center h={500}>
+            <Center h="100%" w="100%">
               <Text c="dimmed" size="lg">No data for the selected parameters.</Text>
             </Center>
           )}
