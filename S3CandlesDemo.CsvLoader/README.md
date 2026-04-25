@@ -4,6 +4,15 @@
 
 The CsvLoader is a service designed to efficiently load historical OHLCV (Open, High, Low, Close, Volume) candle data from CSV files stored in AWS S3 and merge them into the S3-backed candles repository. It automatically detects gaps in existing candle data and fills only those gaps using the provided CSV files.
 
+## Important: CSV File Symbol Name Matching
+
+CSV files in S3 use **canonical symbol names without slashes** (e.g., `BTCUSD`, `ETHEUR`). The config file may contain symbols with slashes (e.g., `BTC/USD`, `ETH/EUR`). The loader must:
+
+1. **Strip `/` from the config symbol** — e.g., `ETH/EUR` → `ETHEUR`
+2. **Try alternate names** — for each config row, try matching CSV files using both the `Asset pair` column (e.g., `BTCUSD`) and the `Kraken pair` column with `/` removed (e.g., `XBT/USD` → `XBTUSD`). This handles cases where the canonical name differs from the Kraken name used to generate the CSV files.
+
+All CSV filename lookups should use these normalized names.
+
 ## Architecture & Design
 
 ### Memory-Efficient Streaming
@@ -28,28 +37,29 @@ CSV files are located in a **separate S3 bucket** named `csv`.
 ```
 
 **Components:**
-- **Symbol**: Asset pair name (e.g., `ETH/EUR`, `BTC/USD`)
+- **Symbol**: Asset pair name **without slashes** (e.g., `ETHEUR`, `BTCUSD`)
 - **IntervalMinutes**: Candle size in minutes (e.g., `1`, `5`, `60`, `1440`)
 - **StartDateTime**: ISO 8601 format - `yyyy-MM-dd HH:mm:ss` (first candle timestamp)
 - **EndDateTime**: ISO 8601 format - `yyyy-MM-dd HH:mm:ss` (last candle timestamp)
 
-**Example:** `ETH/EUR_60_2024-01-01 00:00:00_2024-12-31 23:59:59.csv`
+**Example:** `ETHEUR_60_2024-01-01 00:00:00_2024-12-31 23:59:59.csv`
 
 ### File Content Requirements
 - **No header row** — data starts immediately with first record
 - **Sorted by timestamp** — records must be in ascending time order
 - **No gaps** — all expected candles for the time range must be present
-- **Fixed 6 columns** (no variations):
-  1. Timestamp (long) — Unix seconds timestamp
+- **Fixed 7 columns** (no variations):
+  1. Timestamp (int32) — Unix seconds timestamp. **Must be read as `Int32`** to reject invalid/out-of-range values at parse time rather than silently producing wrong dates
   2. Open (double) — Opening price
   3. High (double) — Highest price
   4. Low (double) — Lowest price
   5. Close (double) — Closing price
-  6. Volume (long) — Trading volume / trade count
+  6. Volume (double) — Trading volume
+  7. Trade count (int32) — Number of trades in the candle
 
 **Example CSV row:**
 ```
-1704067200,52000.50,52150.75,51900.25,52100.00,150000
+1704067200,52000.50,52150.75,51900.25,52100.00,150000,42
 ```
 
 ## Configuration
@@ -65,18 +75,66 @@ The CsvLoader uses a **single unified configuration file** shared across all pro
 - `Interval` — Candle size in minutes (e.g., `1`, `5`, `60`, `1440`)
 - `Start date` — Earliest date to collect from (`yyyy-MM-dd`)
 
-This single configuration source eliminates symbol synchronization issues across multiple services and ensures all projects process the same assets. The CsvLoader reads this same file to fill data gaps.
+This single configuration source eliminates symbol synchronization issues across multiple services and ensures all projects process the same assets. The CsvLoader reads this same file to fill data gaps. The **Start date** column is used as the `minDate` parameter for `ICandlesRepository.GetGaps()` — gaps are only detected from this date forward.
 
 ### Environment Variables
 - **WORKERS** (optional, default=1): Number of parallel worker threads for concurrent symbol/interval processing
 - **ASPNETCORE_ENVIRONMENT** (default=Development): Controls which appsettings file is loaded (Development, Staging, Production)
-- **S3Candles:ConfigBucket** (optional): S3 bucket containing the config file (default: `candles-config`)
-- **S3Candles:ConfigKey** (optional): S3 key for the config file (default: `kraken-collector-config.csv`)
 
 ### S3 Configuration
-- **Source bucket**: Must contain CSV files following the naming convention above
-- **Target bucket**: The candles repository where merged candles are stored
-- Credentials and endpoint settings should be configured via appsettings or environment variables
+Configured via `appsettings.json` (or environment variables using `:` → `__` notation):
+- **S3Candles:Bucket** — Target bucket for the candles repository
+- **S3Candles:Prefix** — Key prefix for binary candle files in the target bucket
+- **S3Candles:CsvBucket** — Source bucket containing CSV files (default: `csv`)
+- **S3Candles:ConfigBucket** — Bucket containing the unified config file (default: `candles-config`)
+- **S3Candles:ConfigKey** — Key for the config file (default: `kraken-collector-config.csv`)
+- **S3Candles:AWS:AccessKey** — AWS / MinIO access key
+- **S3Candles:AWS:SecretKey** — AWS / MinIO secret key
+- **S3Candles:AWS:Region** — AWS region (e.g., `us-east-1`)
+- **S3Candles:AWS:Url** *(optional)* — Custom S3-compatible endpoint (e.g., MinIO `http://localhost:7000`). When set, forces path-style addressing and HTTP
+
+### Example `appsettings.json`
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "S3Candles": {
+    "Bucket": "your-candles-bucket",
+    "Prefix": "candles",
+    "CsvBucket": "csv",
+    "ConfigBucket": "candles-config",
+    "ConfigKey": "kraken-collector-config.csv",
+    "AWS": {
+      "AccessKey": "your-access-key",
+      "SecretKey": "your-secret-key",
+      "Region": "us-east-1"
+    }
+  }
+}
+```
+
+### Example `appsettings.Development.json`
+```json
+{
+  "S3Candles": {
+    "Bucket": "minio-test-bucket",
+    "Prefix": "candles",
+    "CsvBucket": "csv",
+    "ConfigBucket": "candles-config",
+    "ConfigKey": "kraken-collector-config.csv",
+    "AWS": {
+      "AccessKey": "minioadmin",
+      "SecretKey": "minioadmin",
+      "Region": "us-east-1",
+      "Url": "http://localhost:7000"
+    }
+  }
+}
+```
 
 ## Gap Detection & Filling Algorithm
 
@@ -106,14 +164,20 @@ using var csvReader = CsvDataReader.Create(s3Stream, opts);
 
 while (csvReader.Read())
 {
-    long timestamp = csvReader.GetInt64(0);  // Column 1: Timestamp
-    double open = csvReader.GetDouble(1);    // Column 2: Open
-    double high = csvReader.GetDouble(2);    // Column 3: High
-    double low = csvReader.GetDouble(3);     // Column 4: Low
-    double close = csvReader.GetDouble(4);   // Column 5: Close
-    long volume = csvReader.GetInt64(5);     // Column 6: Volume
+    int timestamp = csvReader.GetInt32(0);     // Column 1: Timestamp (Unix seconds, int32)
+    double open = csvReader.GetDouble(1);      // Column 2: Open
+    double high = csvReader.GetDouble(2);      // Column 3: High
+    double low = csvReader.GetDouble(3);       // Column 4: Low
+    double close = csvReader.GetDouble(4);     // Column 5: Close
+    double volume = csvReader.GetDouble(5);    // Column 6: Volume
+    int tradeCount = csvReader.GetInt32(6);    // Column 7: Trade count
     
-    // Process candle record
+    var candle = new Candle
+    {
+        Timestamp = DateTimeOffset.FromUnixTimeSeconds(timestamp).UtcDateTime,
+        Open = open, High = high, Low = low, Close = close,
+        Volume = volume, TradeCount = tradeCount
+    };
 }
 ```
 
@@ -164,10 +228,6 @@ The `/health` endpoint returns:
 
 The CsvLoader includes **structured, non-verbose logging** suitable for scheduled batch operations:
 
-### Log Levels
-- **Information**: Gap detection results, file counts, merge operations started/completed
-- **Warning**: Malformed CSV records, missing S3 files, retry attempts
-- **Error**: S3 connectivity failures, corrupted data, load failures for a symbol/interval pair
 
 ### Sample Log Output
 ```
@@ -178,11 +238,6 @@ The CsvLoader includes **structured, non-verbose logging** suitable for schedule
 [INFO] ETH/EUR: 4,320 candles loaded and merged
 [INFO] All gap-filling operations completed in 45.2s
 ```
-
-### Log Configuration
-- Logs are written to console (container-friendly)
-- Structured JSON logging available via `Serilog` for external aggregation (ELK, CloudWatch, etc.)
-- Log level configurable via `appsettings.json` or `LOG_LEVEL` environment variable
 
 ## Development & Local Testing
 
@@ -229,7 +284,7 @@ ETHUSD,ETHUSD,1440,2024-06-01
 SOLUSD,SOLUSD,15,2025-01-01
 ```
 
-The first three columns (Asset pair, Kraken pair, Interval) are used by the CSV loader to identify gaps. The Start date is for reference by the Kraken collector.
+All four columns are used by the CSV loader: Asset pair and Kraken pair for symbol name matching (see [Symbol Name Matching](#important-csv-file-symbol-name-matching)), Interval for the candle size, and Start date as the `minDate` for gap detection.
 
 ### Testing with Sample Data
 1. Upload CSV files to the MinIO `csv` bucket following the naming convention
@@ -268,7 +323,7 @@ This project uses the **S3CandlesDemo.Candles** library (`ICandlesRepository` / 
 4. Begin gap-filling for each (symbol, interval) pair
 
 ### Gap Detection
-For each (symbol, interval) pair defined in the config, the loader calls `ICandlesRepository.GetGaps(symbol, intervalMinutes, minDate)`. This method inspects the in-memory file index and returns a list of `(Start, End)` ranges where no binary candle files exist. The gap list is computed purely from file metadata — no candle data is read at this stage.
+For each (symbol, interval) pair defined in the config, the loader calls `ICandlesRepository.GetGaps(symbol, intervalMinutes, minDate)` where `minDate` is the **Start date** value from the config row. This method inspects the in-memory file index and returns a list of `(Start, End)` ranges where no binary candle files exist. The gap list is computed purely from file metadata — no candle data is read at this stage.
 
 ### CSV-to-Gap Matching
 Each CSV file's time range is encoded in its filename: `{Symbol}_{IntervalMinutes}_{Start}_{End}.csv`. The loader compares each gap's `(Start, End)` with the available CSV file ranges to find files that overlap the gap.
@@ -279,10 +334,60 @@ When a matching CSV file is found, it is opened as a stream directly from S3 (ne
 ### Enumerator Reuse Across Gaps
 A single CSV file may cover multiple consecutive gaps (e.g., if some gaps were partially filled by earlier runs). To avoid re-opening and re-seeking the same file, the loader **keeps the `IAsyncEnumerable<Candle>` enumerator and its last-read timestamp alive** between gaps. If the next gap falls within the same CSV file's range, iteration simply continues from where it left off. A new CSV stream is opened only when the current enumerator is exhausted or the next gap requires a different file.
 
-### Parallelism
-The unit of work that can be parallelized is a **(symbol, interval) pair**. Each pair's gap-filling runs independently. The degree of parallelism is controlled by the `WORKERS` environment variable. No coordination is needed between workers since each operates on a distinct (symbol, interval) key.
+> **Implementation note:** The enumerator reuse and gap-boundary yielding logic is complex. The implementing agent should leave this as a **`// TODO`** stub method (e.g., `YieldCandlesForGap(...)`) with the signature and doc comment in place but no implementation body. This will be implemented manually.
+
+### Background Job & App Lifecycle
+The gap-filling work is driven by a single `IHostedService` (e.g., `GapFillingService : BackgroundService`). On `ExecuteAsync`:
+1. Load config and build the list of (symbol, interval) pairs
+2. Create a `Task` for each pair, throttled by a `SemaphoreSlim(WORKERS)` to limit parallelism
+3. `await Task.WhenAll(tasks)` — wait for every pair to finish
+4. Call `Environment.Exit(0)` on success, or `Environment.Exit(2)` if any task threw an unrecoverable error
+
+No coordination is needed between workers since each operates on a distinct (symbol, interval) key.
+
+### Health Check
+Implement using the standard `IHealthCheck` interface registered via `builder.Services.AddHealthChecks().AddCheck<GapFillingHealthCheck>("gap-filling")`. The health check tracks a `DateTime lastProgress` timestamp updated whenever a worker successfully stores candles. Reports `Unhealthy` if no progress for 5+ minutes.
 
 ### Versioning
 Candle file versioning is handled entirely by `ICandlesRepository`. When `StoreCandlesAsync()` writes a new binary file for a time range that overlaps existing files, the repository automatically increments the version number. The loader does not manage versions directly.
+
+## Project Setup
+
+### Project Type
+`Microsoft.NET.Sdk.Web` — Minimal ASP.NET API (same pattern as `S3CandlesDemo.Api`).
+
+### Required Project References
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\S3CandlesDemo.Candles\S3CandlesDemo.Candles.csproj" />
+</ItemGroup>
+```
+
+### Required NuGet Packages
+```xml
+<ItemGroup>
+  <PackageReference Include="Sylvan.Data.Csv" Version="*" />
+  <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="*" />
+  <PackageReference Include="Scalar.AspNetCore" Version="*" />
+</ItemGroup>
+```
+
+`AWSSDK.S3` is already a transitive dependency via `S3CandlesDemo.Candles`.
+
+### AOT & Trimming
+```xml
+<PropertyGroup>
+  <TargetFramework>net10.0</TargetFramework>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>enable</ImplicitUsings>
+  <PublishAot>true</PublishAot>
+  <InvariantGlobalization>true</InvariantGlobalization>
+  <PublishTrimmed>true</PublishTrimmed>
+  <IsAotCompatible>true</IsAotCompatible>
+</PropertyGroup>
+<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+  <PublishAot>false</PublishAot>
+</PropertyGroup>
+```
 
 
