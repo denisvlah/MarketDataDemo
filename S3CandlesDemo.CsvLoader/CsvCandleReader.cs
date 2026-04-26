@@ -1,40 +1,31 @@
-using Amazon.S3;
-using Amazon.S3.Model;
 using S3CandlesDemo.Candles;
 using Sylvan.Data.Csv;
 
 namespace S3CandlesDemo.CsvLoader;
 
 /// <summary>
-/// Reads a CSV file from S3 and yields Candle records as an async enumerable.
-/// Uses Sylvan.Data.Csv for near-zero allocation streaming.
+/// Reads OHLCV candle records from a CSV stream using Sylvan.Data.Csv for near-zero allocation streaming.
+/// The stream is consumed one record at a time; it is never fully buffered in memory.
 /// </summary>
 public static class CsvCandleReader
 {
     /// <summary>
-    /// Opens a CSV file from S3 and yields candles in timestamp order.
-    /// The stream is never fully downloaded — records are parsed one at a time.
+    /// Parses candles from an already-opened <paramref name="stream"/> in timestamp order.
+    /// The caller retains ownership of the stream and must dispose it after iteration.
     /// </summary>
     public static async IAsyncEnumerable<Candle> ReadCandlesAsync(
-        IAmazonS3 s3Client,
-        string bucket,
-        string key,
+        Stream stream,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var response = await s3Client.GetObjectAsync(new GetObjectRequest
-        {
-            BucketName = bucket,
-            Key = key
-        }, ct);
-
-        await using var s3Stream = response.ResponseStream;
-        using var reader = new StreamReader(s3Stream);
+        using var reader = new StreamReader(stream, leaveOpen: true);
 
         var opts = new CsvDataReaderOptions { HasHeaders = false };
-        using var csvReader = CsvDataReader.Create(reader, opts);
+        using var csvReader = await CsvDataReader.CreateAsync(reader, opts, ct);
 
-        while (csvReader.Read())
+        while (await csvReader.ReadAsync())
         {
+            ct.ThrowIfCancellationRequested();
+
             int timestamp = csvReader.GetInt32(0);
             double open = csvReader.GetDouble(1);
             double high = csvReader.GetDouble(2);

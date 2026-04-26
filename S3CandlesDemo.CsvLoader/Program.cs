@@ -68,6 +68,16 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
     }
 });
 
+// CSV source (S3-backed); swap with a filesystem implementation for tests
+builder.Services.AddSingleton<ICsvSource>(sp =>
+{
+    var s3Config = sp.GetRequiredService<IConfiguration>().GetSection("S3Candles");
+    var csvBucket = s3Config.GetValue<string>("CsvBucket") ?? "csv";
+    var s3Client = sp.GetRequiredService<IAmazonS3>();
+    var logger = sp.GetRequiredService<ILogger<S3CsvSource>>();
+    return new S3CsvSource(s3Client, csvBucket, logger);
+});
+
 // Gap-filling background service
 builder.Services.AddHostedService<GapFillingService>();
 

@@ -11,6 +11,7 @@ public class GapFillingService : BackgroundService
 {
     private readonly ICandlesRepository _repo;
     private readonly IAmazonS3 _s3Client;
+    private readonly ICsvSource _csvSource;
     private readonly IConfiguration _config;
     private readonly ILogger<GapFillingService> _logger;
     private readonly GapFillingHealthCheck _healthCheck;
@@ -19,6 +20,7 @@ public class GapFillingService : BackgroundService
     public GapFillingService(
         ICandlesRepository repo,
         IAmazonS3 s3Client,
+        ICsvSource csvSource,
         IConfiguration config,
         ILogger<GapFillingService> logger,
         GapFillingHealthCheck healthCheck,
@@ -26,6 +28,7 @@ public class GapFillingService : BackgroundService
     {
         _repo = repo;
         _s3Client = s3Client;
+        _csvSource = csvSource;
         _config = config;
         _logger = logger;
         _healthCheck = healthCheck;
@@ -41,7 +44,6 @@ public class GapFillingService : BackgroundService
             var s3Config = _config.GetSection("S3Candles");
             var configBucket = s3Config.GetValue<string>("ConfigBucket") ?? "candles-config";
             var configKey = s3Config.GetValue<string>("ConfigKey") ?? "kraken-collector-config.csv";
-            var csvBucket = s3Config.GetValue<string>("CsvBucket") ?? "csv";
 
             _logger.LogInformation("Reading config from S3: {Bucket}/{Key}", configBucket, configKey);
             List<LoaderJobConfig> jobs;
@@ -60,8 +62,8 @@ public class GapFillingService : BackgroundService
             // 2. Build repository file index
             await _repo.RebuildFileIndexAsync(stoppingToken);
 
-            // 3. List all CSV file names from the csv S3 bucket (no downloads)
-            var csvFiles = await CsvFileIndex.ListCsvFilesAsync(_s3Client, csvBucket, _logger, stoppingToken);
+            // 3. List all CSV file names from the CSV source (no downloads)
+            var csvFiles = await _csvSource.ListFilesAsync(stoppingToken);
 
             // 4. Determine worker count
             var workers = 1;
@@ -79,7 +81,7 @@ public class GapFillingService : BackgroundService
                 await semaphore.WaitAsync(stoppingToken);
                 try
                 {
-                    await ProcessJobAsync(job, csvFiles, csvBucket, stoppingToken);
+                    await ProcessJobAsync(job, csvFiles, stoppingToken);
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
@@ -122,7 +124,7 @@ public class GapFillingService : BackgroundService
     }
 
     private async Task ProcessJobAsync(
-        LoaderJobConfig job, List<CsvFileInfo> allCsvFiles, string csvBucket, CancellationToken ct)
+        LoaderJobConfig job, List<CsvFileInfo> allCsvFiles, CancellationToken ct)
     {
         var symbol = job.AssetPair;
         var interval = job.IntervalMinutes;
@@ -173,14 +175,14 @@ public class GapFillingService : BackgroundService
 
             foreach (var csvFile in overlapping)
             {
-                await FillGapFromCsvAsync(symbol, interval, gap, csvFile, csvBucket, ct);
+                await FillGapFromCsvAsync(symbol, interval, gap, csvFile, ct);
             }
         }
     }
 
     private async Task FillGapFromCsvAsync(
         string symbol, int interval, (DateTime Start, DateTime End) gap,
-        CsvFileInfo csvFile, string csvBucket, CancellationToken ct)
+        CsvFileInfo csvFile, CancellationToken ct)
     {
         var gapStart = gap.Start;
         var gapEnd = gap.End;
@@ -189,13 +191,13 @@ public class GapFillingService : BackgroundService
             symbol, interval, Path.GetFileName(csvFile.Key), gapStart,
             gapEnd == DateTime.MaxValue ? "open" : gapEnd.ToString());
 
-        // Open CSV with retries (exponential backoff, 3 attempts)
-        IAsyncEnumerable<Candle>? candleStream = null;
+        // Open the CSV stream with exponential backoff retry (3 attempts)
+        Stream? stream = null;
         for (int attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
-                candleStream = CsvCandleReader.ReadCandlesAsync(_s3Client, csvBucket, csvFile.Key, ct);
+                stream = await _csvSource.OpenReadStreamAsync(csvFile.Key, ct);
                 break;
             }
             catch (OperationCanceledException) { throw; }
@@ -208,7 +210,7 @@ public class GapFillingService : BackgroundService
             }
         }
 
-        if (candleStream == null)
+        if (stream == null)
         {
             _logger.LogError("Failed to open CSV file {Key} after 3 attempts", csvFile.Key);
             throw new IOException($"Failed to open CSV file {csvFile.Key} after 3 attempts");
@@ -220,9 +222,12 @@ public class GapFillingService : BackgroundService
         // across consecutive gaps within the same CSV file.
         // Signature: IAsyncEnumerable<Candle> YieldCandlesForGap(IAsyncEnumerable<Candle> source, DateTime gapStart, DateTime gapEnd)
 
-        var gapCandles = FilterCandlesForGap(candleStream, gapStart, gapEnd);
-        await _repo.StoreCandlesAsync(symbol, interval, gapCandles, ct);
-        _healthCheck.ReportProgress();
+        await using (stream)
+        {
+            var gapCandles = FilterCandlesForGap(CsvCandleReader.ReadCandlesAsync(stream, ct), gapStart, gapEnd);
+            await _repo.StoreCandlesAsync(symbol, interval, gapCandles, ct);
+            _healthCheck.ReportProgress();
+        }
     }
 
     /// <summary>
