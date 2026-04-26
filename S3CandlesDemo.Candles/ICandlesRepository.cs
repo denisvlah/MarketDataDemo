@@ -24,6 +24,9 @@ namespace S3CandlesDemo.Candles
         // Rebuild the in-memory file index from the underlying storage
         Task RebuildFileIndexAsync(CancellationToken cancellationToken = default);
 
+        // Read the job config (pair/interval pairs) from the underlying storage
+        Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default);
+
         /// <summary>
         /// Calculate gaps in the stored candles for a given symbol and interval, starting from a minimum date. This can be used to identify missing data ranges that need to be backfilled.
         /// </summary>

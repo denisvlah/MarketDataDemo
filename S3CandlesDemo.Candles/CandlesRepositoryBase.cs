@@ -229,6 +229,11 @@ namespace S3CandlesDemo.Candles
             return Task.CompletedTask;
         }
 
+        protected const string ConfigKey = "config/kraken-collector-config.csv";
+
+        public virtual Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<PairJobConfig>>(Array.Empty<PairJobConfig>());
+
         public List<(DateTime Start, DateTime End)> GetGaps(string symbol, int intervalMinutes, DateTime minDate)
         {
             var key = (symbol, intervalMinutes);

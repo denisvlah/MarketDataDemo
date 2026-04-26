@@ -41,5 +41,13 @@ namespace S3CandlesDemo.Candles
             s.Seek(offset, SeekOrigin.Begin);
             return Task.FromResult(s);
         }
+
+        public override Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default)
+        {
+            var filePath = Path.Combine(_baseLocation, "config", "kraken-collector-config.csv");
+            if (!File.Exists(filePath))
+                return Task.FromResult<IReadOnlyList<PairJobConfig>>(Array.Empty<PairJobConfig>());
+            return Task.FromResult<IReadOnlyList<PairJobConfig>>(PairJobConfigReader.ReadFromFile(filePath));
+        }
     }
 }

@@ -236,6 +236,12 @@ namespace S3CandlesDemo.Candles
 
             return response.ResponseStream;
         }
+
+        public override async Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default)
+        {
+            var configs = await PairJobConfigReader.ReadFromS3Async(_s3Client, _bucket, ConfigKey, cancellationToken);
+            return configs;
+        }
     }
 }
 
