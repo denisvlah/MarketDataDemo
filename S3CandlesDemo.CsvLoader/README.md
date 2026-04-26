@@ -67,7 +67,7 @@ CSV files are located in a **separate S3 bucket** named `csv`.
 ### Unified Configuration File
 The CsvLoader uses a **single unified configuration file** shared across all projects (Kraken Collector, CsvLoader, and other services) to define symbols and intervals:
 
-**File location:** `candles-config` S3 bucket → `kraken-collector-config.csv`
+**File location:** `config/kraken-collector-config.csv` key within the shared S3 bucket.
 
 **Format:** CSV with columns (no header row):
 - `Asset pair` — Canonical symbol name for storage (e.g., `BTCUSD`, `ETHUSD`)
@@ -75,7 +75,7 @@ The CsvLoader uses a **single unified configuration file** shared across all pro
 - `Interval` — Candle size in minutes (e.g., `1`, `5`, `60`, `1440`)
 - `Start date` — Earliest date to collect from (`yyyy-MM-dd`)
 
-This single configuration source eliminates symbol synchronization issues across multiple services and ensures all projects process the same assets. The CsvLoader reads this same file to fill data gaps. The **Start date** column is used as the `minDate` parameter for `ICandlesRepository.GetGaps()` — gaps are only detected from this date forward.
+Job config is now read via `ICandlesRepository.GetJobConfigAsync()`, which uses `PairJobConfig` as the shared record type. This eliminates the need for per-project config readers and ensures all projects process the same assets. The **Start date** column is used as the `minDate` parameter for `ICandlesRepository.GetGaps()` — gaps are only detected from this date forward.
 
 ### Environment Variables
 - **WORKERS** (optional, default=1): Number of parallel worker threads for concurrent symbol/interval processing
@@ -83,11 +83,8 @@ This single configuration source eliminates symbol synchronization issues across
 
 ### S3 Configuration
 Configured via `appsettings.json` (or environment variables using `:` → `__` notation):
-- **S3Candles:Bucket** — Target bucket for the candles repository
-- **S3Candles:Prefix** — Key prefix for binary candle files in the target bucket
-- **S3Candles:CsvBucket** — Source bucket containing CSV files (default: `csv`)
-- **S3Candles:ConfigBucket** — Bucket containing the unified config file (default: `candles-config`)
-- **S3Candles:ConfigKey** — Key for the config file (default: `kraken-collector-config.csv`)
+- **S3Candles:Bucket** — Single shared bucket for candles, CSV files, and config (under `candles/`, `csv/`, and `config/` prefixes)
+- **S3Candles:Prefix** — Key prefix for binary candle files (always `candles`)
 - **S3Candles:AWS:AccessKey** — AWS / MinIO access key
 - **S3Candles:AWS:SecretKey** — AWS / MinIO secret key
 - **S3Candles:AWS:Region** — AWS region (e.g., `us-east-1`)
@@ -105,9 +102,6 @@ Configured via `appsettings.json` (or environment variables using `:` → `__` n
   "S3Candles": {
     "Bucket": "your-candles-bucket",
     "Prefix": "candles",
-    "CsvBucket": "csv",
-    "ConfigBucket": "candles-config",
-    "ConfigKey": "kraken-collector-config.csv",
     "AWS": {
       "AccessKey": "your-access-key",
       "SecretKey": "your-secret-key",
@@ -123,9 +117,6 @@ Configured via `appsettings.json` (or environment variables using `:` → `__` n
   "S3Candles": {
     "Bucket": "minio-test-bucket",
     "Prefix": "candles",
-    "CsvBucket": "csv",
-    "ConfigBucket": "candles-config",
-    "ConfigKey": "kraken-collector-config.csv",
     "AWS": {
       "AccessKey": "minioadmin",
       "SecretKey": "minioadmin",

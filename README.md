@@ -80,11 +80,16 @@ docker compose restart kraken-collector
 open http://localhost:9001  # minioadmin / minioadmin
 ```
 
-**Unified Configuration Approach:**
-All scheduled jobs (Kraken collector, CSV loader) read symbols and intervals from a **single configuration file** stored in the `candles-config` S3 bucket:
-- **`kraken-collector-config.csv`** — Defines all asset pairs and intervals for both Kraken data collection and CSV gap-filling
+**Unified Single-Bucket Layout:**
+All data is stored in a **single S3 bucket** under three fixed path prefixes:
 
-This file is seeded by `minio-setup` on first start from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
+| Prefix | Content |
+|--------|---------|
+| `candles/` | Binary `.bin` candle files served by the API |
+| `csv/` | CSV source files consumed by `S3CandlesDemo.CsvLoader` |
+| `config/` | Job config CSV (`config/kraken-collector-config.csv`) |
+
+All scheduled jobs (Kraken collector, CSV loader, historical importer) read symbols and intervals via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared bucket and returns a list of `PairJobConfig` records. This file is seeded by `minio-setup` on first start from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`.
 
 ## Local Development (without Docker)
 

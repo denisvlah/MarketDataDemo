@@ -27,7 +27,7 @@ The importer uses the **unified configuration file** shared across all projects 
 | Interval | int | Candle size in minutes | `60` |
 | Start date | date | Earliest date to import from (`yyyy-MM-dd`) | `2023-01-01` |
 
-The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3Candles:ConfigKey` settings. If these settings are empty, the app falls back to a **local file** in the project output directory. All projects (Kraken Collector, Historical Importer, CSV Loader) share this single `kraken-collector-config.csv` configuration.
+The config CSV is loaded via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared S3 bucket. The method returns a list of `PairJobConfig` records (defined in `S3CandlesDemo.Candles`). All projects share this single unified config mechanism.
 
 ### `appsettings.json`
 
@@ -35,9 +35,7 @@ The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3C
 {
   "S3Candles": {
     "Bucket": "candles-data",
-    "Prefix": "kraken-candles",
-    "ConfigBucket": "candles-config",
-    "ConfigKey": "kraken-collector-config.csv",
+    "Prefix": "candles",
     "AWS": {
       "AccessKey": "...",
       "SecretKey": "...",
@@ -53,8 +51,6 @@ The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3C
 
 | Setting | Description |
 |---------|-------------|
-| `S3Candles:ConfigBucket` | S3 bucket containing the config CSV |
-| `S3Candles:ConfigKey` | S3 key for the config CSV |
 | `HistoricalImport:TempDirectory` | Local directory for downloading and extracting ZIP archives |
 
 ### Available Intervals

@@ -58,6 +58,11 @@ This is a **C# .NET 10.0 project** that implements efficient OHLCV (Open, High, 
 - Required settings: `S3Candles:Bucket`, `S3Candles:Prefix`, `S3Candles:AWS:{AccessKey,SecretKey,Region}`
 - Optional: `S3Candles:AWS:Url` for custom S3-compatible endpoints (MinIO); forces path-style and HTTP
 - **Startup Behavior**: If S3 config is incomplete, logs critical error and exits with code 1
+- **Single-bucket layout**: All data lives in one bucket under three fixed prefixes:
+  - `candles/` — binary `.bin` candle files
+  - `csv/` — CSV source files for `S3CandlesDemo.CsvLoader`
+  - `config/` — job config CSV (`config/kraken-collector-config.csv`)
+- **No `ConfigBucket`, `CsvBucket`, or `ConfigKey` settings** — these have been removed. Use only `Bucket` (single bucket) and `Prefix: "candles"`.
 
 ## Critical Development Workflows
 
@@ -114,10 +119,12 @@ bash startMinio.sh  # or docker-compose up -f minio-dockercompose.yaml
 
 ## Common Modifications
 
-**Adding a new repository backend**: Inherit `CandlesRepositoryBase`, implement 5 abstract methods (EnumerateFiles, GetFileName, OpenWrite/ReadStreamAsync, MoveTempToFinal).
+**Adding a new repository backend**: Inherit `CandlesRepositoryBase`, implement 5 abstract methods (EnumerateFiles, GetFileName, OpenWrite/ReadStreamAsync, MoveTempToFinal), and override `GetJobConfigAsync`.
 
 **Adding HTTP endpoints**: [../S3CandlesDemo.Api/Program.cs](../S3CandlesDemo.Api/Program.cs) MapPost/MapGet at lines 60+. Use `ICandlesRepository` injected from DI container.
 
 **Adjusting file size limits**: Logic in `CandlesRepositoryBase.StoreCandlesAsync()` around version increment; no hard limit currently enforced.
 
 **Performance debugging**: Check `_fileIndex` cache; if slow, ensure `BuildFileIndex()` completes before large queries.
+
+**Reading job config**: All projects use `await _repository.GetJobConfigAsync()` (returns `IReadOnlyList<PairJobConfig>`) instead of project-local config readers. `PairJobConfig` and `PairJobConfigReader` are defined in `S3CandlesDemo.Candles`. The S3 key is hard-coded as `config/kraken-collector-config.csv`.
