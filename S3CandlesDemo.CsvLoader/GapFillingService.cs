@@ -1,4 +1,3 @@
-using Amazon.S3;
 using S3CandlesDemo.Candles;
 
 namespace S3CandlesDemo.CsvLoader;
@@ -10,26 +9,20 @@ namespace S3CandlesDemo.CsvLoader;
 public class GapFillingService : BackgroundService
 {
     private readonly ICandlesRepository _repo;
-    private readonly IAmazonS3 _s3Client;
     private readonly ICsvSource _csvSource;
-    private readonly IConfiguration _config;
     private readonly ILogger<GapFillingService> _logger;
     private readonly GapFillingHealthCheck _healthCheck;
     private readonly IHostApplicationLifetime _lifetime;
 
     public GapFillingService(
         ICandlesRepository repo,
-        IAmazonS3 s3Client,
         ICsvSource csvSource,
-        IConfiguration config,
         ILogger<GapFillingService> logger,
         GapFillingHealthCheck healthCheck,
         IHostApplicationLifetime lifetime)
     {
         _repo = repo;
-        _s3Client = s3Client;
         _csvSource = csvSource;
-        _config = config;
         _logger = logger;
         _healthCheck = healthCheck;
         _lifetime = lifetime;
@@ -40,20 +33,15 @@ public class GapFillingService : BackgroundService
         int exitCode = 0;
         try
         {
-            // 1. Read config from S3
-            var s3Config = _config.GetSection("S3Candles");
-            var configBucket = s3Config.GetValue<string>("ConfigBucket") ?? "candles-config";
-            var configKey = s3Config.GetValue<string>("ConfigKey") ?? "kraken-collector-config.csv";
-
-            _logger.LogInformation("Reading config from S3: {Bucket}/{Key}", configBucket, configKey);
-            List<LoaderJobConfig> jobs;
+            // 1. Read config via repository
+            List<PairJobConfig> jobs;
             try
             {
-                jobs = await ConfigReader.ReadFromS3Async(_s3Client, configBucket, configKey, stoppingToken);
+                jobs = (await _repo.GetJobConfigAsync(stoppingToken)).ToList();
             }
             catch (Exception ex)
             {
-                _logger.LogCritical(ex, "Failed to load config from S3 ({Bucket}/{Key})", configBucket, configKey);
+                _logger.LogCritical(ex, "Failed to load job config");
                 Environment.Exit(1);
                 return;
             }
@@ -124,7 +112,7 @@ public class GapFillingService : BackgroundService
     }
 
     private async Task ProcessJobAsync(
-        LoaderJobConfig job, List<CsvFileInfo> allCsvFiles, CancellationToken ct)
+        PairJobConfig job, List<CsvFileInfo> allCsvFiles, CancellationToken ct)
     {
         var symbol = job.AssetPair;
         var interval = job.IntervalMinutes;

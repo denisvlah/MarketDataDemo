@@ -32,6 +32,7 @@ public static partial class CsvFileIndex
             var response = await s3Client.ListObjectsV2Async(new ListObjectsV2Request
             {
                 BucketName = csvBucket,
+                Prefix = "csv/",
                 ContinuationToken = continuationToken
             }, ct);
 

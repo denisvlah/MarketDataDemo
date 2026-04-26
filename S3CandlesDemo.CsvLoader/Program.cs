@@ -72,10 +72,10 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
 builder.Services.AddSingleton<ICsvSource>(sp =>
 {
     var s3Config = sp.GetRequiredService<IConfiguration>().GetSection("S3Candles");
-    var csvBucket = s3Config.GetValue<string>("CsvBucket") ?? "csv";
+    var bucket = s3Config.GetValue<string>("Bucket") ?? "candles-bucket";
     var s3Client = sp.GetRequiredService<IAmazonS3>();
     var logger = sp.GetRequiredService<ILogger<S3CsvSource>>();
-    return new S3CsvSource(s3Client, csvBucket, logger);
+    return new S3CsvSource(s3Client, bucket, logger);
 });
 
 // Gap-filling background service
