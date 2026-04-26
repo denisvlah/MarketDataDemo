@@ -47,7 +47,7 @@ public partial class HistoricalImporter
     /// Run all import jobs. Returns true if all succeeded, false if any failed.
     /// </summary>
     public async Task<bool> RunAllAsync(
-        IReadOnlyList<ImportJobConfig> jobs, string tempDir, string googleApiKey,
+        IReadOnlyList<PairJobConfig> jobs, string tempDir, string googleApiKey,
         string? folderId = null, CancellationToken ct = default)
     {
         Directory.CreateDirectory(tempDir);
@@ -94,7 +94,7 @@ public partial class HistoricalImporter
     /// continue importing after the latest stored data.
     /// </summary>
     public async Task ImportJobAsync(
-        ImportJobConfig job, List<QuarterlyArchive> archives, string tempDir, CancellationToken ct = default)
+        PairJobConfig job, List<QuarterlyArchive> archives, string tempDir, CancellationToken ct = default)
     {
         if (!ValidArchiveIntervals.Contains(job.IntervalMinutes))
         {
@@ -197,7 +197,7 @@ public partial class HistoricalImporter
     /// filter to only candles within the gap range (after gapStart, before gapEnd), and store to S3.
     /// </summary>
     private async Task ImportFromArchiveAsync(
-        ImportJobConfig job, QuarterlyArchive archive, DateTime gapStart, DateTime gapEnd,
+        PairJobConfig job, QuarterlyArchive archive, DateTime gapStart, DateTime gapEnd,
         string tempDir, CancellationToken ct)
     {
         var zipPath = Path.Combine(tempDir, archive.FileName);
