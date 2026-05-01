@@ -11,10 +11,10 @@ namespace S3CandlesDemo.Candles
 
         // Inherits GetCandleFilesAsync, RemoveCandleFilesAsync, RemoveCandleFileAsync from base
 
-        protected override async IAsyncEnumerable<string> EnumerateFilesAsync()
+        protected override async IAsyncEnumerable<(string Path, long Size)> EnumerateFilesAsync()
         {
             foreach (var file in Directory.EnumerateFiles(_baseLocation, "*.bin"))
-                yield return file;
+                yield return (file, new FileInfo(file).Length);
             await Task.CompletedTask;
         }
 
@@ -25,7 +25,7 @@ namespace S3CandlesDemo.Candles
 
         protected override Task<Stream> OpenWriteStreamAsync(string tempPath)
         {
-            Stream s = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            Stream s = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 65536);
             return Task.FromResult(s);
         }
 
@@ -37,7 +37,7 @@ namespace S3CandlesDemo.Candles
 
         protected override Task<Stream> OpenReadStreamAsync(string filePathOrKey, long offset)
         {
-            Stream s = new FileStream(filePathOrKey, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Stream s = new FileStream(filePathOrKey, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 65536, FileOptions.SequentialScan);
             s.Seek(offset, SeekOrigin.Begin);
             return Task.FromResult(s);
         }

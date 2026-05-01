@@ -95,21 +95,19 @@ app.MapGet("/candles/{symbol}/{intervalMinutes}", async (string symbol, int inte
         var candles = repo.FetchCandlesAsync(symbol, intervalMinutes, from.Value, to.Value, ct);
         return Results.Stream(async (stream) =>
         {
-
+            await stream.WriteAsync(JsonStreamBytes.ArrayOpen, ct);
+            bool first = true;
             int i = 0;
-
             await foreach (var item in candles.WithCancellation(ct))
             {
-                await stream.WriteAsync( new []{(byte)'['}, ct); 
+                if (!first) await stream.WriteAsync(JsonStreamBytes.Comma, ct);
+                first = false;
                 i++;
                 await JsonSerializer.SerializeAsync(stream, item, AppJsonSerializerContext.Default.Candle, ct);
-                if (i%1000 == 0)
-                {
-                    await stream.FlushAsync(ct); // 🔥 critical for streaming                    
-                }
+                if (i % 1000 == 0)
+                    await stream.FlushAsync(ct);
             }
-            await stream.WriteAsync( new []{(byte)']'}, ct); 
-
+            await stream.WriteAsync(JsonStreamBytes.ArrayClose, ct);
             await stream.FlushAsync(ct);
         }, "application/json");
         // ctx.Response.ContentType = "application/json";
@@ -166,6 +164,13 @@ app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken c
 app.Run();
 
 record SymbolIntervals(string Symbol, int[] Intervals);
+
+static class JsonStreamBytes
+{
+    public static readonly byte[] ArrayOpen = [(byte)'['];
+    public static readonly byte[] ArrayClose = [(byte)']'];
+    public static readonly byte[] Comma = [(byte)','];
+}
 
 [JsonSerializable(typeof(Candle))]
 [JsonSerializable(typeof(List<Candle>))]

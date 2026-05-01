@@ -7,8 +7,8 @@ namespace S3CandlesDemo.Candles
     {
         protected readonly string _baseLocation;
         
-        // TODO: use here the sorted list that is sorted by start time ASC and verson DESC.
-        protected readonly ConcurrentDictionary<(string symbol, int interval), List<CandleFileInfoInternal>> _fileIndex = new();
+        // Swapped atomically on rebuild; lists inside are immutable after publish.
+        protected ConcurrentDictionary<(string symbol, int interval), List<CandleFileInfoInternal>> _fileIndex = new();
         private static readonly Regex FilePattern = FilePatternRegex();
 
         [GeneratedRegex("^(?<symbol>[^_]+)_(?<interval>\\d+)_(?<start>\\d{8}T\\d{6})_(?<end>\\d{8}T\\d{6})_v(?<version>\\d+)\\.bin$")]
@@ -20,9 +20,12 @@ namespace S3CandlesDemo.Candles
         }
 
         protected async Task BuildFileIndexAsync()
-        {            
-            var keys = new HashSet<(string symbol, int interval)>();
-            await foreach (var file in EnumerateFilesAsync())
+        {
+            // Build into a fresh local dict; sort lists; then atomically publish.
+            // This avoids the race where FetchCandlesAsync iterates a list that
+            // BuildFileIndexAsync is simultaneously mutating.
+            var newIndex = new ConcurrentDictionary<(string symbol, int interval), List<CandleFileInfoInternal>>();
+            await foreach (var (file, size) in EnumerateFilesAsync())
             {
                 var name = GetFileName(file);
                 var match = FilePattern.Match(name);
@@ -32,24 +35,18 @@ namespace S3CandlesDemo.Candles
                 var start = DateTime.ParseExact(match.Groups["start"].Value, "yyyyMMdd'T'HHmmss", null);
                 var end = DateTime.ParseExact(match.Groups["end"].Value, "yyyyMMdd'T'HHmmss", null);
                 var version = int.Parse(match.Groups["version"].Value);
-                var info = new CandleFileInfoInternal(file, start, end, version);
+                var info = new CandleFileInfoInternal(file, start, end, version, size);
                 var key = (symbol, interval);
-                keys.Add(key);
-                _fileIndex.AddOrUpdate(key, k => new List<CandleFileInfoInternal> { info }, (k, list) => { list.Add(info); return list; });
+                newIndex.AddOrUpdate(key, k => new List<CandleFileInfoInternal> { info }, (k, list) => { list.Add(info); return list; });
             }
-            foreach( var kvp in _fileIndex)
-            {
-                if (!keys.Contains(kvp.Key))
-                    _fileIndex.TryRemove(kvp.Key, out _);
-            }
-            
-            foreach (var kvp in _fileIndex)
+            foreach (var kvp in newIndex)
                 kvp.Value.Sort((a, b) => a.Start.CompareTo(b.Start));
+            _fileIndex = newIndex;
         }
 
         public Task RebuildFileIndexAsync(CancellationToken cancellationToken = default) => BuildFileIndexAsync();
 
-        protected abstract IAsyncEnumerable<string> EnumerateFilesAsync();
+        protected abstract IAsyncEnumerable<(string Path, long Size)> EnumerateFilesAsync();
         protected abstract string GetFileName(string filePathOrKey);
         protected abstract Task<Stream> OpenWriteStreamAsync(string tempPath);
         protected abstract Task MoveTempToFinalAsync(string tempPath, string finalPath);
@@ -121,7 +118,7 @@ namespace S3CandlesDemo.Candles
                     int totalRead = 0;
                     while (totalRead < Candle.CandleByteSize)
                     {
-                        int read = await stream.ReadAsync(buffer, totalRead, Candle.CandleByteSize - totalRead, cancellationToken);
+                        int read = await stream.ReadAsync(buffer.AsMemory(totalRead, Candle.CandleByteSize - totalRead), cancellationToken);
                         if (read == 0) break;
                         totalRead += read;
                     }
@@ -155,13 +152,16 @@ namespace S3CandlesDemo.Candles
             public DateTime Start { get; }
             public DateTime End { get; }
             public int Version { get; }
+            // Cached from storage listing (e.g. S3 ListObjects) — avoids per-file HEAD requests.
+            public long Size { get; }
 
-            public CandleFileInfoInternal(string path, DateTime start, DateTime end, int version)
+            public CandleFileInfoInternal(string path, DateTime start, DateTime end, int version, long size = 0)
             {
                 Path = path;
                 Start = start;
                 End = end;
                 Version = version;
+                Size = size;
             }
             public S3CandlesDemo.Candles.CandleFileInfo ToPublic() => new S3CandlesDemo.Candles.CandleFileInfo { Path = Path, Start = Start, End = End, Version = Version };
         }
@@ -199,7 +199,8 @@ namespace S3CandlesDemo.Candles
                 var (symbol, interval) = kvp.Key;
                 foreach (var file in kvp.Value)
                 {
-                    long fileSize = await GetFileSizeAsync(file.Path);
+                    // Use the size cached during index build; fall back to a live query only if missing.
+                    long fileSize = file.Size > 0 ? file.Size : await GetFileSizeAsync(file.Path);
                     long candleCount = fileSize / Candle.CandleByteSize;
                     result.Add(new CandleFileInfoDetail
                     {
@@ -242,7 +243,7 @@ namespace S3CandlesDemo.Candles
 
             var gaps = new List<(DateTime Start, DateTime End)>();
             DateTime current = minDate;
-            foreach (var file in files.OrderBy(f => f.Start))
+            foreach (var file in files) // already sorted by Start in the index
             {
                 if (file.End < current) continue; // file is completely before current
                 if (file.Start > current)

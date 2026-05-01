@@ -131,6 +131,9 @@ namespace S3CandlesDemo.Candles
             return new PartETag(partNumber, response.ETag);
         }
 
+        // GetFileSizeAsync fallback: S3 sizes are cached in CandleFileInfoInternal.Size during index build
+        // (from ListObjectsV2 response). GetAllCandleFilesAsync uses the cached value and only calls
+        // GetFileSizeAsync when Size == 0 (e.g. for files added via StoreCandlesAsync mid-cycle).
         protected override async Task<long> GetFileSizeAsync(string path)
         {
             try
@@ -176,7 +179,7 @@ namespace S3CandlesDemo.Candles
             return $"{_prefix}/{fileName}";
         }
 
-        protected override async IAsyncEnumerable<string> EnumerateFilesAsync()
+        protected override async IAsyncEnumerable<(string Path, long Size)> EnumerateFilesAsync()
         {
             var request = new ListObjectsV2Request { BucketName = _bucket, Prefix = _prefix };
             ListObjectsV2Response? response;
@@ -185,7 +188,7 @@ namespace S3CandlesDemo.Candles
                 response = await _s3Client.ListObjectsV2Async(request);
                 foreach (var obj in response.S3Objects)
                     if (obj.Key.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
-                        yield return obj.Key;
+                        yield return (obj.Key, obj.Size);
                 request.ContinuationToken = response.NextContinuationToken;
             } while (response.IsTruncated);
         }
