@@ -1,10 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
-    <ProjectReference Include="..\S3CandlesDemo.Candles\S3CandlesDemo.Candles.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="3.7.1.12" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="1.2.45" />
   </ItemGroup>
@@ -14,11 +11,5 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Update="kraken-historical-config.csv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
 </Project>

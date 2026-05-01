@@ -1,0 +1,27 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Install native AOT prerequisites (clang linker + zlib headers)
+RUN apt-get update && apt-get install -y --no-install-recommends clang zlib1g-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy project files and restore
+COPY S3CandlesDemo.Candles/S3CandlesDemo.Candles.csproj S3CandlesDemo.Candles/
+COPY S3CandlesDemo.CsvLoader/S3CandlesDemo.CsvLoader.csproj S3CandlesDemo.CsvLoader/
+RUN dotnet restore S3CandlesDemo.CsvLoader/S3CandlesDemo.CsvLoader.csproj
+
+# Copy source and publish (AOT produces a self-contained native binary)
+COPY S3CandlesDemo.Candles/ S3CandlesDemo.Candles/
+COPY S3CandlesDemo.CsvLoader/ S3CandlesDemo.CsvLoader/
+RUN dotnet publish S3CandlesDemo.CsvLoader/S3CandlesDemo.CsvLoader.csproj \
+    -c Release \
+    -o /app/publish
+
+# runtime-deps provides only OS libraries — no managed runtime needed for AOT binaries
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["./S3CandlesDemo.CsvLoader"]

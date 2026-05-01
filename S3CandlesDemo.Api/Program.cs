@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Web;
 using Amazon.S3;
 using S3CandlesDemo.Candles;
 using Scalar.AspNetCore;
@@ -66,7 +67,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // Store candles (bulk)
 app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, int intervalMinutes, List<Candle> candles, ICandlesRepository repo, CancellationToken cancellationToken) =>
@@ -81,23 +82,45 @@ app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, in
 // Fetch candles by symbol, time period, and interval
 app.MapGet("/candles/{symbol}/{intervalMinutes}", async (string symbol, int intervalMinutes, DateTime from, DateTime to, ICandlesRepository repo, HttpContext ctx, CancellationToken cancellationToken) =>
     {
+        symbol = HttpUtility.UrlDecode(symbol);
+
         var candles = repo.FetchCandlesAsync(symbol, intervalMinutes, from, to, cancellationToken);
-        ctx.Response.ContentType = "application/json";
-        await ctx.Response.WriteAsync("[");
-        bool first = true;
-
-        await foreach (var candle in candles)
+        return Results.Stream(async (stream) =>
         {
-            if (!first) await ctx.Response.WriteAsync(",");
-            first = false;
+            await using var writer = new Utf8JsonWriter(stream);
 
-            await JsonSerializer.SerializeAsync(
-                ctx.Response.Body,
-                candle,
-                AppJsonSerializerContext.Default.Candle,
-                ctx.RequestAborted);
-        }
-        await ctx.Response.WriteAsync("]");
+            writer.WriteStartArray();
+            int i = 0;
+
+            await foreach (var item in candles.WithCancellation(cancellationToken))
+            {
+                i++;
+                JsonSerializer.Serialize(writer, item);
+                if (i%1000 == 0)
+                {
+                    await writer.FlushAsync(); // 🔥 critical for streaming                    
+                }
+            }
+
+            writer.WriteEndArray();
+            await writer.FlushAsync();
+        }, "application/json");
+        // ctx.Response.ContentType = "application/json";
+        // await ctx.Response.WriteAsync("[");
+        // bool first = true;
+
+        // await foreach (var candle in candles)
+        // {
+        //     if (!first) await ctx.Response.WriteAsync(",");
+        //     first = false;
+
+        //     await JsonSerializer.SerializeAsync(
+        //         ctx.Response.Body,
+        //         candle,
+        //         AppJsonSerializerContext.Default.Candle,
+        //         ctx.RequestAborted);
+        // }
+        // await ctx.Response.WriteAsync("]");
     });
 
 // Retrieve all file info for a symbol/interval

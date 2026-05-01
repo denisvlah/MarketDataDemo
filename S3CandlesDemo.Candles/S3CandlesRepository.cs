@@ -194,8 +194,10 @@ namespace S3CandlesDemo.Candles
         protected override string GetFileName(string filePathOrKey)
         {
             if (string.IsNullOrEmpty(filePathOrKey)) return string.Empty;
-            var idx = filePathOrKey.LastIndexOf('/');
-            return idx >= 0 ? filePathOrKey.Substring(idx + 1) : filePathOrKey;
+            if (!string.IsNullOrEmpty(_prefix) && filePathOrKey.StartsWith(_prefix))
+                filePathOrKey = filePathOrKey.Substring(_prefix.Length).TrimStart('/');
+
+            return filePathOrKey;
         }
 
         protected override Task<Stream> OpenWriteStreamAsync(string tempPath)

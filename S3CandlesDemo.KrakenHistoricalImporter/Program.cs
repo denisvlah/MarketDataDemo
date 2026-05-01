@@ -1,5 +1,4 @@
 using Amazon.S3;
-using S3CandlesDemo.Candles;
 using S3CandlesDemo.KrakenHistoricalImporter;
 using Scalar.AspNetCore;
 
@@ -39,36 +38,19 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     return new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
 });
 
-// S3 candle repository
-builder.Services.AddSingleton<ICandlesRepository>(sp =>
-{
-    var logger = sp.GetRequiredService<ILogger<Program>>();
-    try
-    {
-        var s3Config = sp.GetRequiredService<IConfiguration>().GetSection("S3Candles");
-        var bucket = s3Config.GetValue<string>("Bucket");
-        var prefix = s3Config.GetValue<string>("Prefix");
-
-        if (string.IsNullOrEmpty(bucket))
-        {
-            logger.LogCritical("S3Candles:Bucket is required.");
-            Environment.Exit(1);
-        }
-
-        var s3Client = sp.GetRequiredService<IAmazonS3>();
-        return new S3CandlesRepository(bucket, prefix, s3Client);
-    }
-    catch (Exception ex)
-    {
-        logger.LogCritical(ex, "Failed to initialize S3CandlesRepository.");
-        Environment.Exit(1);
-        throw;
-    }
-});
-
 // Historical importer
 builder.Services.AddSingleton<HttpClient>();
-builder.Services.AddSingleton<HistoricalImporter>();
+builder.Services.AddSingleton<HistoricalImporter>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var bucket = config.GetSection("S3Candles").GetValue<string>("Bucket") ?? string.Empty;
+    return new HistoricalImporter(
+        sp.GetRequiredService<IAmazonS3>(),
+        sp.GetRequiredService<HttpClient>(),
+        bucket,
+        sp.GetRequiredService<ILogger<HistoricalImporter>>()
+    );
+});
 
 var app = builder.Build();
 
@@ -90,30 +72,24 @@ _ = Task.Run(async () =>
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     try
     {
-        // Read config via repository
-        var repo = app.Services.GetRequiredService<ICandlesRepository>();
-        var jobs = await repo.GetJobConfigAsync();
-
-        logger.LogInformation("Loaded {Count} import jobs", jobs.Count);
-
         var importConfig = app.Services.GetRequiredService<IConfiguration>().GetSection("HistoricalImport");
         var tempDir = importConfig.GetValue<string>("TempDirectory") ?? Path.Combine(Path.GetTempPath(), "kraken-historical");
         var googleApiKey = importConfig.GetValue<string>("GoogleApiKey");
 
         if (string.IsNullOrEmpty(googleApiKey))
         {
-            logger.LogCritical("HistoricalImport:GoogleApiKey is required to list Google Drive folder contents.");
+            logger.LogCritical("HistoricalImport:GoogleApiKey is required to access Google Drive.");
             Environment.ExitCode = 1;
             return;
         }
 
         var importer = app.Services.GetRequiredService<HistoricalImporter>();
-        var success = await importer.RunAllAsync(jobs, tempDir, googleApiKey, ct: default);
+        var success = await importer.RunAllAsync(tempDir, googleApiKey, ct: default);
 
         if (success)
-            logger.LogInformation("All historical import jobs completed successfully.");
+            logger.LogInformation("All historical archives processed successfully.");
         else
-            logger.LogError("Some historical import jobs failed.");
+            logger.LogError("Some archives failed to process.");
 
         Environment.ExitCode = success ? 0 : 1;
     }

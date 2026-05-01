@@ -1,33 +1,35 @@
 # S3CandlesDemo.KrakenHistoricalImporter
 
-Imports **historical** OHLCVT candle data from [Kraken's quarterly Google Drive archives](https://drive.google.com/drive/folders/15RSlNuW_h0kVM8or8McOGOMfHeBFvFGI) and stores it in S3 using the shared `S3CandlesDemo.Candles` binary format.
+Downloads all quarterly OHLCVT ZIP archives from [Kraken's Google Drive folder](https://drive.google.com/drive/folders/15RSlNuW_h0kVM8or8McOGOMfHeBFvFGI), extracts the CSV files, renames them to match the `S3CandlesDemo.CsvLoader` naming convention, and uploads them to the S3 `csv/` folder.
 
-> **Note:** For collecting the latest/incremental candle data from Kraken's REST API, use the separate `S3CandlesDemo.KrakenLatestCollector` project.
+> **Note:** After uploading, run `S3CandlesDemo.CsvLoader` to convert the CSVs into the binary candle format consumed by the API.
 
 ## How It Works
 
-1. **Reads config** from a CSV file in S3 (`S3Candles:ConfigBucket` / `S3Candles:ConfigKey`), same format as `S3CandlesDemo.KrakenLatestCollector`. Falls back to a local file if S3 config is not set.
-2. For each configured pair/interval, **queries S3** (`ICandlesRepository`) to find the latest stored candle timestamp.
-3. **Determines which quarterly ZIP files** are needed — only quarters that could contain data newer than what's already stored. Available archives: `Kraken_OHLCVT_Q{1-4}_{year}.zip` from Q1 2023 onward.
-4. **Downloads only the required ZIPs** from Google Drive to a temporary directory (skips already-downloaded files).
-5. **Extracts** each ZIP and **parses** the relevant CSV (format: `timestamp,open,high,low,close,volume,trades` — no header row).
-6. **Filters** out candles already covered by existing S3 data and **stores** only the missing candles.
-7. **Exits** with code `0` (success) or `1` (failure).
+1. **Lists existing CSV files** in S3 (`csv/` prefix) to build a skip-set — files already uploaded are not re-uploaded.
+2. **Lists all files** in the Google Drive folder via the Drive API v3. Filters to quarterly ZIP archives (`Kraken_OHLCVT_Q{quarter}_{year}.zip`).
+3. **Downloads each ZIP** to the local temp directory. Already-cached ZIPs are reused; corrupt ones are re-downloaded.
+4. **Extracts each ZIP** to a subdirectory. Already-extracted directories are reused.
+5. For every `.csv` file found inside the archive:
+   - Parses the Kraken filename (`{KrakenPair}_{IntervalMinutes}.csv`) to get the symbol and interval.
+   - Reads the **first and last rows** to determine the exact timestamp range.
+   - Renames to `{KrakenPair}_{IntervalMinutes}_{StartDateTime}_{EndDateTime}.csv` (datetime format: `yyyy-MM-dd HH:mm:ss`).
+   - **Uploads** the renamed file to `csv/` in S3 (skips if already present).
+6. **Exits** with code `0` (success) or `1` (partial failure).
+
+## CSV Naming Convention
+
+The `S3CandlesDemo.CsvLoader` expects files named:
+
+```
+{Symbol}_{IntervalMinutes}_{StartDateTime}_{EndDateTime}.csv
+```
+
+Example: `XBTUSD_60_2023-01-01 00:00:00_2023-03-31 23:59:00.csv`
+
+The importer derives start and end datetimes directly from the first and last rows of each CSV, so the filename always reflects actual data coverage.
 
 ## Configuration
-
-### Configuration Source
-
-The importer uses the **unified configuration file** shared across all projects (`kraken-collector-config.csv`), with identical format to `S3CandlesDemo.KrakenLatestCollector`. It has 4 columns (no header row):
-
-| Column | Type | Description | Example |
-|--------|------|-------------|---------|
-| Asset pair | string | Canonical pair name used for storage in S3 | `BTCUSD` |
-| Kraken pair | string | Pair name as it appears in the archive filenames | `XBTUSD` |
-| Interval | int | Candle size in minutes | `60` |
-| Start date | date | Earliest date to import from (`yyyy-MM-dd`) | `2023-01-01` |
-
-The config CSV is loaded via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared S3 bucket. The method returns a list of `PairJobConfig` records (defined in `S3CandlesDemo.Candles`). All projects share this single unified config mechanism.
 
 ### `appsettings.json`
 
@@ -35,7 +37,6 @@ The config CSV is loaded via **`ICandlesRepository.GetJobConfigAsync()`**, which
 {
   "S3Candles": {
     "Bucket": "candles-data",
-    "Prefix": "candles",
     "AWS": {
       "AccessKey": "...",
       "SecretKey": "...",
@@ -44,44 +45,46 @@ The config CSV is loaded via **`ICandlesRepository.GetJobConfigAsync()`**, which
     }
   },
   "HistoricalImport": {
-    "TempDirectory": "/tmp/kraken-historical"
+    "TempDirectory": "/tmp/kraken-historical",
+    "GoogleApiKey": "your-google-api-key"
   }
 }
 ```
 
 | Setting | Description |
 |---------|-------------|
-| `HistoricalImport:TempDirectory` | Local directory for downloading and extracting ZIP archives |
+| `S3Candles:Bucket` | S3 bucket that holds all data (`csv/`, `candles/`, `config/` prefixes) |
+| `S3Candles:AWS:Url` | Optional — custom endpoint for MinIO or other S3-compatible stores |
+| `HistoricalImport:TempDirectory` | Local directory for ZIP downloads and extraction |
+| `HistoricalImport:GoogleApiKey` | Google Drive API v3 key (free, from Google Cloud Console) — required |
 
-### Available Intervals
+### Getting a Google API Key
 
-The Kraken archive includes CSVs for intervals: `1`, `5`, `15`, `30`, `60`, `240`, `720`, `1440` minutes.
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials.
+2. Create an API key and restrict it to the **Google Drive API**.
+3. Set `HistoricalImport:GoogleApiKey` to this key.
 
-### Quarterly Archive Naming
+## Source Data Format
 
-ZIP files on Google Drive follow the pattern: `Kraken_OHLCVT_Q{quarter}_{year}.zip`
+Kraken archives are available at: `https://drive.google.com/drive/folders/15RSlNuW_h0kVM8or8McOGOMfHeBFvFGI`
 
-Inside each ZIP, CSV files are named `{KrakenPair}_{IntervalMinutes}.csv` (e.g., `XBTUSD_60.csv`).
-
-### Google Drive File IDs
-
-The importer resolves quarterly ZIP file IDs from a built-in lookup table covering Q1 2023 through the latest available quarter. New quarters can be added to the `QuarterlyArchives` dictionary in `HistoricalImporter.cs` without changing the config.
+- **Archive naming**: `Kraken_OHLCVT_Q{1-4}_{year}.zip`
+- **CSV naming inside archives**: `{KrakenPair}_{IntervalMinutes}.csv` (e.g. `XBTUSD_60.csv`)
+- **CSV format**: `timestamp,open,high,low,close,volume,trades` — no header row, timestamp is Unix seconds
+- **Available intervals**: 1, 5, 15, 30, 60, 240, 720, 1440 minutes
 
 ## Scheduling & Lifecycle
 
-- Designed to run as a **one-shot batch job** (not a long-running service).
-- Safe to run repeatedly — only downloads ZIPs and imports candles that are missing.
-- Schedule it alongside `S3CandlesDemo.KrakenLatestCollector` to fill gaps the API can't cover.
+- Designed as a **one-shot batch job** — run it once to seed the `csv/` folder with all available history.
+- Safe to re-run — already-uploaded files are detected via S3 key lookup and skipped.
 - The health check endpoint (`/health`) is available for orchestration probes during execution.
-- Requires ephemeral disk space proportional to the number of quarterly ZIPs needed (200-550 MB each).
+- Requires ephemeral disk space for ZIP files and extracted CSVs (~200–550 MB per quarterly archive).
 
 ## Error Handling
 
-- If the config CSV is missing or malformed, log an error and exit with code `1`.
-- If a Google Drive download fails, the job for that quarter fails but others continue.
-- Already-downloaded ZIPs are reused on re-run (idempotent downloads).
-- Each pair/interval is processed independently — a failure in one doesn't block others.
-- Partial progress is preserved — candles already stored in S3 remain; the next run resumes.
+- If `GoogleApiKey` is missing, exits immediately with code `1`.
+- If a single archive fails (download or extraction error), the error is logged and remaining archives continue.
+- Already-uploaded CSV keys are tracked in memory — a process restart will re-query S3 on the next run.
 
 ## Quick Start
 
@@ -95,3 +98,4 @@ dotnet run --project S3CandlesDemo.KrakenHistoricalImporter
 # Health check
 curl http://localhost:5098/health
 ```
+

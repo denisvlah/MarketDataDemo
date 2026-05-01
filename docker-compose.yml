@@ -21,7 +21,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── One-shot init: create buckets & seed config CSV ──────────────────
+  # ── One-shot init: create bucket & seed config CSV ────────────────────
   minio-setup:
     image: minio/mc:latest
     container_name: s3candles-minio-setup
@@ -30,18 +30,14 @@ services:
         condition: service_healthy
     restart: "no"
     volumes:
-      - ./S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv:/tmp/kraken-collector-config.csv:ro
-      - ./S3CandlesDemo.KrakenHistoricalImporter/kraken-historical-config.csv:/tmp/kraken-historical-config.csv:ro
+      - ./kraken-collector-config.csv:/tmp/kraken-collector-config.csv:ro
     entrypoint: >
       /bin/sh -c "
       mc alias set myminio http://minio:9000 minioadmin minioadmin;
       mc mb myminio/candles-data --ignore-existing;
-      mc mb myminio/candles-config --ignore-existing;
-      mc stat myminio/candles-config/kraken-collector-config.csv > /dev/null 2>&1 || \
-        mc cp /tmp/kraken-collector-config.csv myminio/candles-config/kraken-collector-config.csv;
-      mc stat myminio/candles-config/kraken-historical-config.csv > /dev/null 2>&1 || \
-        mc cp /tmp/kraken-historical-config.csv myminio/candles-config/kraken-historical-config.csv;
-      echo 'Buckets ready, config CSVs seeded';
+      mc stat myminio/candles-data/config/kraken-collector-config.csv > /dev/null 2>&1 || \
+        mc cp /tmp/kraken-collector-config.csv myminio/candles-data/config/kraken-collector-config.csv;
+      echo 'Bucket ready, config CSV seeded';
       "
 
   # ── Candles HTTP API ──────────────────────────────────────────────────
@@ -64,18 +60,16 @@ services:
       S3Candles__AWS__Region: us-east-1
       S3Candles__AWS__Url: http://minio:9000
 
-  # ── Kraken OHLCV collector (one-shot batch job) ──────────────────────
-  kraken-collector:
+  # ── CSV → binary candle loader (long-running background service) ──────
+  csv-loader:
     build:
       context: .
-      dockerfile: Dockerfile.collector
-    container_name: s3candles-collector
+      dockerfile: Dockerfile.csv-loader
     depends_on:
       minio-setup:
         condition: service_completed_successfully
     ports:
-      - "5099:8080"
-    restart: "no"
+      - "5045:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       S3Candles__Bucket: candles-data
@@ -84,33 +78,47 @@ services:
       S3Candles__AWS__SecretKey: minioadmin
       S3Candles__AWS__Region: us-east-1
       S3Candles__AWS__Url: http://minio:9000
-      S3Candles__ConfigBucket: candles-config
-      S3Candles__ConfigKey: kraken-collector-config.csv
+
+  # ── Kraken OHLCV collector (one-shot batch job) ──────────────────────
+  # kraken-collector:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.collector
+  #   depends_on:
+  #     minio-setup:
+  #       condition: service_completed_successfully
+  #   ports:
+  #     - "5099:8080"
+  #   restart: "no"
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: Production
+  #     S3Candles__Bucket: candles-data
+  #     S3Candles__Prefix: candles
+  #     S3Candles__AWS__AccessKey: minioadmin
+  #     S3Candles__AWS__SecretKey: minioadmin
+  #     S3Candles__AWS__Region: us-east-1
+  #     S3Candles__AWS__Url: http://minio:9000
 
   # ── Kraken historical importer (one-shot batch job) ──────────────────
-  kraken-historical-importer:
-    build:
-      context: .
-      dockerfile: Dockerfile.historical-importer
-    container_name: s3candles-historical-importer
-    depends_on:
-      minio-setup:
-        condition: service_completed_successfully
-    restart: "no"
-    volumes:
-      - historical_downloads:/tmp/kraken-historical
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      S3Candles__Bucket: candles-data
-      S3Candles__Prefix: candles
-      S3Candles__AWS__AccessKey: minioadmin
-      S3Candles__AWS__SecretKey: minioadmin
-      S3Candles__AWS__Region: us-east-1
-      S3Candles__AWS__Url: http://minio:9000
-      S3Candles__ConfigBucket: candles-config
-      S3Candles__ConfigKey: kraken-historical-config.csv
-      HistoricalImport__TempDirectory: /tmp/kraken-historical
-      HistoricalImport__GoogleApiKey: ${GOOGLE_API_KEY:?Set GOOGLE_API_KEY env var}
+  # kraken-historical-importer:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.historical-importer
+  #   depends_on:
+  #     minio-setup:
+  #       condition: service_completed_successfully
+  #   restart: "no"
+  #   volumes:
+  #     - historical_downloads:/tmp/kraken-historical
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: Production
+  #     S3Candles__Bucket: candles-data
+  #     S3Candles__AWS__AccessKey: minioadmin
+  #     S3Candles__AWS__SecretKey: minioadmin
+  #     S3Candles__AWS__Region: us-east-1
+  #     S3Candles__AWS__Url: http://minio:9000
+  #     HistoricalImport__TempDirectory: /tmp/kraken-historical
+  #     HistoricalImport__GoogleApiKey: ${GOOGLE_API_KEY:?Set GOOGLE_API_KEY env var}
 
 volumes:
   minio_data:
