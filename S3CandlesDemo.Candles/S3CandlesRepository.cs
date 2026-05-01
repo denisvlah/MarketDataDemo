@@ -168,7 +168,6 @@ namespace S3CandlesDemo.Candles
             _bucket = bucket;
             _prefix = prefix?.Trim('/');
             _s3Client = client ?? new AmazonS3Client();
-            BuildFileIndexAsync().GetAwaiter().GetResult();
         }
 
         private string KeyFromFileName(string fileName)

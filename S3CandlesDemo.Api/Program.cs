@@ -13,6 +13,7 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
     var logger = sp.GetRequiredService<ILogger<Program>>();
     try
     {
+        logger.LogInformation("Initializing S3CandlesRepository...");
         var s3Config = sp.GetRequiredService<IConfiguration>().GetSection("S3Candles");
         var bucket = s3Config.GetValue<string>("Bucket");
         var prefix = s3Config.GetValue<string>("Prefix");
@@ -26,6 +27,7 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
             string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(region))
         {
             logger.LogCritical("S3 configuration is incomplete. Bucket, AccessKey, SecretKey, and Region are required.");
+            Thread.Sleep(1000); // Ensure log is flushed before exit
             Environment.Exit(1);
         }
 
@@ -40,11 +42,14 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
         else
             s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
 
-        return new S3CandlesRepository(bucket, prefix, s3Client);
+        var r=  new S3CandlesRepository(bucket, prefix, s3Client);
+        logger.LogInformation("S3CandlesRepository initialized successfully.");
+        return r;
     }
     catch (Exception ex)
     {
         logger.LogCritical(ex, "Failed to initialize S3CandlesRepository. S3 connection is not available.");
+        Thread.Sleep(1000); // Ensure log is flushed before exit
         Environment.Exit(1);
         throw; // Never reached, but satisfies compiler
     }
@@ -80,30 +85,32 @@ app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, in
 // Note: Minimal API does not natively support IAsyncEnumerable from body, so this is omitted for now.
 
 // Fetch candles by symbol, time period, and interval
-app.MapGet("/candles/{symbol}/{intervalMinutes}", async (string symbol, int intervalMinutes, DateTime from, DateTime to, ICandlesRepository repo, HttpContext ctx, CancellationToken cancellationToken) =>
+app.MapGet("/candles/{symbol}/{intervalMinutes}", async (string symbol, int intervalMinutes, DateTime? from, DateTime? to, ICandlesRepository repo, CancellationToken ct) =>
     {
+        if (from is null || to is null)
+            return Results.BadRequest("Query parameters 'from' and 'to' are required (e.g. ?from=2024-02-01&to=2024-02-12).");
+
         symbol = HttpUtility.UrlDecode(symbol);
 
-        var candles = repo.FetchCandlesAsync(symbol, intervalMinutes, from, to, cancellationToken);
+        var candles = repo.FetchCandlesAsync(symbol, intervalMinutes, from.Value, to.Value, ct);
         return Results.Stream(async (stream) =>
         {
-            await using var writer = new Utf8JsonWriter(stream);
 
-            writer.WriteStartArray();
             int i = 0;
 
-            await foreach (var item in candles.WithCancellation(cancellationToken))
+            await foreach (var item in candles.WithCancellation(ct))
             {
+                await stream.WriteAsync( new []{(byte)'['}, ct); 
                 i++;
-                JsonSerializer.Serialize(writer, item);
+                await JsonSerializer.SerializeAsync(stream, item, AppJsonSerializerContext.Default.Candle, ct);
                 if (i%1000 == 0)
                 {
-                    await writer.FlushAsync(); // 🔥 critical for streaming                    
+                    await stream.FlushAsync(ct); // 🔥 critical for streaming                    
                 }
             }
+            await stream.WriteAsync( new []{(byte)']'}, ct); 
 
-            writer.WriteEndArray();
-            await writer.FlushAsync();
+            await stream.FlushAsync(ct);
         }, "application/json");
         // ctx.Response.ContentType = "application/json";
         // await ctx.Response.WriteAsync("[");
@@ -185,6 +192,20 @@ namespace S3CandlesDemo.Api
 public class FileIndexPollingService(ICandlesRepository repo, ILogger<FileIndexPollingService> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
+
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await repo.RebuildFileIndexAsync(cancellationToken);
+            logger.LogInformation("File index built on startup.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to build file index on startup. Will retry in {Interval}.", Interval);
+        }
+        await base.StartAsync(cancellationToken);
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
