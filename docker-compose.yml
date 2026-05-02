@@ -20,6 +20,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '5'
 
   # ── One-shot init: create bucket & seed config CSV ────────────────────
   minio-setup:
@@ -62,12 +66,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 1g
-        reservations:
-          memory: 1g
-    mem_swappiness: 0
-    memswap_limit: 1g
+          cpus: '5'
+        #   memory: 500m
+        # reservations:
+        #   memory: 500m
 
   # ── CSV → binary candle loader (long-running background service) ──────
   csv-loader:
@@ -140,12 +142,21 @@ services:
     depends_on:
       - api
     restart: "no"
+    ports:
+      - "5665:5665"   # k6 web dashboard → http://localhost:5665
     environment:
       BASE_URL: http://api:8080
       SYMBOL: "BTC/USDT"
       INTERVAL: "1"
       FROM: "2024-05-01T00:00:00Z"
-      TO: "2024-12-31T23:59:59Z"
+      TO: "2024-05-05T00:00:00Z"
+      MAX_VUS: "2000"
+      K6_WEB_DASHBOARD: "true"
+      K6_WEB_DASHBOARD_OPEN: "false"
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
 
   # ── Portainer — Docker management UI ──────────────────────────────────
   portainer:
