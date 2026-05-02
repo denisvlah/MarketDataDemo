@@ -48,6 +48,7 @@ export async function fetchCandles(
     from: from.toISOString(),
     to: to.toISOString(),
   });
+  symbol = encodeURIComponent(symbol);
   const res = await fetch(`${BASE_URL}/candles/${symbol}/${intervalMinutes}?${params}`);
   if (!res.ok) throw new Error(`Failed to fetch candles: ${res.status}`);
   return res.json();

@@ -59,6 +59,15 @@ services:
       S3Candles__AWS__SecretKey: minioadmin
       S3Candles__AWS__Region: us-east-1
       S3Candles__AWS__Url: http://minio:9000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1g
+        reservations:
+          memory: 1g
+    mem_swappiness: 0
+    memswap_limit: 1g
 
   # ── CSV → binary candle loader (long-running background service) ──────
   csv-loader:
@@ -120,6 +129,37 @@ services:
   #     HistoricalImport__TempDirectory: /tmp/kraken-historical
   #     HistoricalImport__GoogleApiKey: ${GOOGLE_API_KEY:?Set GOOGLE_API_KEY env var}
 
+  # ── k6 stress test (opt-in via: docker compose --profile stress up k6-stress) ──
+  k6-stress:
+    build:
+      context: ./S3CandlesDemo.StressTests
+      dockerfile: Dockerfile
+    container_name: s3candles-k6-stress
+    profiles:
+      - stress
+    depends_on:
+      - api
+    restart: "no"
+    environment:
+      BASE_URL: http://api:8080
+      SYMBOL: "BTC/USDT"
+      INTERVAL: "1"
+      FROM: "2024-05-01T00:00:00Z"
+      TO: "2024-12-31T23:59:59Z"
+
+  # ── Portainer — Docker management UI ──────────────────────────────────
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: s3candles-portainer
+    restart: unless-stopped
+    ports:
+      - "8000:8000"   # Edge agent tunnel
+      - "9443:9443"   # HTTPS UI → https://localhost:9443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
 volumes:
   minio_data:
   historical_downloads:
+  portainer_data:

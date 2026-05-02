@@ -114,7 +114,7 @@ public class S3CandlesRepositoryIntegrationTests
     {
         if (_fixture.Client == null) throw new InvalidOperationException("S3 client is not initialized.");
         var objects = await _fixture.Client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = bucket });
-        foreach (var obj in objects.S3Objects) await _fixture.Client.DeleteObjectAsync(bucket, obj.Key);
+        foreach (var obj in objects.S3Objects ?? []) await _fixture.Client.DeleteObjectAsync(bucket, obj.Key);
     }
 
     private async Task EnsureBucketAsync(string bucket)

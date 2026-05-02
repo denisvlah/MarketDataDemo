@@ -253,10 +253,10 @@ public partial class HistoricalImporter
                 ContinuationToken = continuationToken
             }, ct);
 
-            foreach (var obj in response.S3Objects)
+            foreach (var obj in response.S3Objects ?? [])
                 keys.Add(obj.Key);
 
-            continuationToken = response.IsTruncated ? response.NextContinuationToken : null;
+            continuationToken = response.IsTruncated == true ? response.NextContinuationToken : null;
         } while (continuationToken != null);
 
         _logger.LogInformation("Found {Count} existing CSV files in S3 csv/ folder.", keys.Count);

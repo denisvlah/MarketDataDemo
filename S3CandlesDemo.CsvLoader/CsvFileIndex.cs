@@ -36,7 +36,7 @@ public static partial class CsvFileIndex
                 ContinuationToken = continuationToken
             }, ct);
 
-            foreach (var obj in response.S3Objects)
+            foreach (var obj in response.S3Objects ?? [])
             {
                 // Extract the file name from the key (strip any prefix/folder)
                 var fileName = Path.GetFileName(obj.Key);
@@ -55,7 +55,7 @@ public static partial class CsvFileIndex
                 result.Add(new CsvFileInfo(obj.Key, symbol, interval, start, end));
             }
 
-            continuationToken = response.IsTruncated ? response.NextContinuationToken : null;
+            continuationToken = response.IsTruncated == true ? response.NextContinuationToken : null;
         } while (continuationToken != null);
 
         logger.LogInformation("Found {Count} CSV files in bucket '{Bucket}'", result.Count, csvBucket);

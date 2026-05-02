@@ -81,7 +81,7 @@ public class KrakenCollectorIntegrationTests
         try
         {
             var objects = await _fixture.Client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = bucket });
-            foreach (var obj in objects.S3Objects)
+            foreach (var obj in objects.S3Objects ?? [])
                 await _fixture.Client.DeleteObjectAsync(bucket, obj.Key);
         }
         catch { }

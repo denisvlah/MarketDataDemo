@@ -186,11 +186,11 @@ namespace S3CandlesDemo.Candles
             do
             {
                 response = await _s3Client.ListObjectsV2Async(request);
-                foreach (var obj in response.S3Objects)
+                foreach (var obj in response.S3Objects ?? [])
                     if (obj.Key.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
-                        yield return (obj.Key, obj.Size);
+                        yield return (obj.Key, obj.Size ?? 0);
                 request.ContinuationToken = response.NextContinuationToken;
-            } while (response.IsTruncated);
+            } while (response.IsTruncated == true);
         }
 
         protected override string GetFileName(string filePathOrKey)
