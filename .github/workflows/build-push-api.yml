@@ -17,7 +17,8 @@ on:
 
 env:
   AWS_REGION: us-east-1          # Change to your ECR region
-  ECR_REPOSITORY: s3-candles-demo/api # Change to your ECR repository name
+  ECR_REPOSITORY: s3-candles-demo  # Single ECR repository for all services
+  IMAGE_PREFIX: api                # Tag prefix — e.g. api-latest, api-<sha>
 
 jobs:
   build-and-push:
@@ -55,8 +56,8 @@ jobs:
         run: |
           docker build \
             -f Dockerfile.api \
-            -t $REGISTRY/$ECR_REPOSITORY:$TAG \
-            -t $REGISTRY/$ECR_REPOSITORY:latest \
+            -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_PREFIX-$TAG \
+            -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_PREFIX-latest \
             .
 
       - name: Push Docker image to ECR
@@ -64,8 +65,8 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          docker push $REGISTRY/$ECR_REPOSITORY:$TAG
-          docker push $REGISTRY/$ECR_REPOSITORY:latest
+          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_PREFIX-$TAG
+          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_PREFIX-latest
 
       - name: Summary
         env:
@@ -76,4 +77,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** \`$REGISTRY\`" >> $GITHUB_STEP_SUMMARY
           echo "**Repository:** \`$ECR_REPOSITORY\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:** \`$TAG\`, \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** \`$IMAGE_PREFIX-$TAG\`, \`$IMAGE_PREFIX-latest\`" >> $GITHUB_STEP_SUMMARY

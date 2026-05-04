@@ -1,11 +1,5 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-
-# Native AOT requires clang and zlib dev headers for the platform linker
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    clang \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
-
+# sdk:10.0-noble-aot bundles clang and all AOT prerequisites — no apt-get needed
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble-aot AS build
 WORKDIR /src
 
 # Copy project files and restore
@@ -24,8 +18,8 @@ RUN dotnet publish S3CandlesDemo.Api/S3CandlesDemo.Api.csproj \
     -p:PublishTrimmed=true \
     -o /app/publish
 
-# runtime-deps: minimal OS libs (glibc, libssl) — no .NET runtime needed for AOT binaries
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
+# runtime-deps:10.0-noble-chiseled — distroless-style, minimal OS libs only, no shell
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
