@@ -1,0 +1,79 @@
+name: Build & Push API to ECR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'S3CandlesDemo.Api/**'
+      - 'S3CandlesDemo.Candles/**'
+      - 'Dockerfile.api'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Custom image tag (defaults to git SHA)'
+        required: false
+        default: ''
+
+env:
+  AWS_REGION: us-east-1          # Change to your ECR region
+  ECR_REPOSITORY: s3-candles-demo/api # Change to your ECR repository name
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.IMAGE_PUSH_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.IMAGE_PUSH_AWS_SECRET }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Docker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          docker build \
+            -f Dockerfile.api \
+            -t $REGISTRY/$ECR_REPOSITORY:$TAG \
+            -t $REGISTRY/$ECR_REPOSITORY:latest \
+            .
+
+      - name: Push Docker image to ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          docker push $REGISTRY/$ECR_REPOSITORY:$TAG
+          docker push $REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Summary
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          echo "### ✅ Image pushed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`$REGISTRY\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** \`$ECR_REPOSITORY\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** \`$TAG\`, \`latest\`" >> $GITHUB_STEP_SUMMARY
