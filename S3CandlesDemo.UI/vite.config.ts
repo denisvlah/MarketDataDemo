@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/candles': {
-        target: 'http://localhost:5062',
+        target: 'http://localhost:5044',
         changeOrigin: true,
       },
     },

@@ -1,4 +1,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+# Native AOT requires clang and zlib dev headers for the platform linker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 
 # Copy project files and restore
@@ -6,20 +13,24 @@ COPY S3CandlesDemo.Candles/S3CandlesDemo.Candles.csproj S3CandlesDemo.Candles/
 COPY S3CandlesDemo.Api/S3CandlesDemo.Api.csproj S3CandlesDemo.Api/
 RUN dotnet restore S3CandlesDemo.Api/S3CandlesDemo.Api.csproj
 
-# Copy source and publish
+# Copy source and publish as a self-contained native AOT binary
 COPY S3CandlesDemo.Candles/ S3CandlesDemo.Candles/
 COPY S3CandlesDemo.Api/ S3CandlesDemo.Api/
 RUN dotnet publish S3CandlesDemo.Api/S3CandlesDemo.Api.csproj \
     -c Release \
-    -p:PublishAot=false \
-    -p:PublishTrimmed=false \
+    -r linux-x64 \
+    --self-contained true \
+    -p:PublishAot=true \
+    -p:PublishTrimmed=true \
     -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# runtime-deps: minimal OS libs (glibc, libssl) — no .NET runtime needed for AOT binaries
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "S3CandlesDemo.Api.dll"]
+# Native AOT produces a plain ELF binary, not a .dll
+ENTRYPOINT ["./S3CandlesDemo.Api"]

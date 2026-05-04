@@ -26,7 +26,7 @@ ETHUSD,ETHUSD,1440,2024-06-01
 SOLUSD,SOLUSD,15,2025-01-01
 ```
 
-The config CSV is loaded from **S3** using the `S3Candles:ConfigBucket` and `S3Candles:ConfigKey` settings. This allows centralised management of the collection schedule without redeploying the app. If these settings are empty, the app falls back to a **local file** in the project output directory.
+The config CSV is loaded via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared S3 bucket. The method returns a list of `PairJobConfig` records (defined in `S3CandlesDemo.Candles`). No per-project config reader is needed.
 
 ### Collection Logic
 

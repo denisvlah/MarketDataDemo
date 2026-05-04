@@ -28,7 +28,7 @@ public class CandleCollector
     /// <summary>
     /// Run all collection jobs. Returns true if all succeeded, false if any failed.
     /// </summary>
-    public async Task<bool> RunAllAsync(IReadOnlyList<CollectorJobConfig> jobs, DateTime cutoffUtc, CancellationToken ct = default)
+    public async Task<bool> RunAllAsync(IReadOnlyList<PairJobConfig> jobs, DateTime cutoffUtc, CancellationToken ct = default)
     {
         bool allSuccess = true;
 
@@ -52,7 +52,7 @@ public class CandleCollector
     /// Run a single collection job: determine start time, stream all candles from Kraken API, store to S3.
     /// Handles both backfill (start date moved earlier) and forward fill (new candles since last run).
     /// </summary>
-    public async Task RunJobAsync(CollectorJobConfig job, DateTime cutoffUtc, CancellationToken ct = default)
+    public async Task RunJobAsync(PairJobConfig job, DateTime cutoffUtc, CancellationToken ct = default)
     {
         _logger.LogInformation("Starting job: {AssetPair} (Kraken: {KrakenPair}) interval={Interval}min from={StartDate}",
             job.AssetPair, job.KrakenPair, job.IntervalMinutes, job.StartDate);
@@ -103,7 +103,7 @@ public class CandleCollector
     /// <summary>
     /// Collect candles for a specific time range and store them to S3.
     /// </summary>
-    private async Task CollectRangeAsync(CollectorJobConfig job, DateTime from, DateTime to, CancellationToken ct)
+    private async Task CollectRangeAsync(PairJobConfig job, DateTime from, DateTime to, CancellationToken ct)
     {
         if (from >= to) return;
 
@@ -115,7 +115,7 @@ public class CandleCollector
     /// Streams all candles from the Kraken API across multiple paginated batches as a single IAsyncEnumerable.
     /// </summary>
     private async IAsyncEnumerable<Candle> FetchAllCandlesAsync(
-        CollectorJobConfig job, DateTime since, DateTime cutoffUtc,
+        PairJobConfig job, DateTime since, DateTime cutoffUtc,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         int totalCandles = 0;

@@ -131,13 +131,9 @@ namespace S3CandlesDemo.Candles
             return new PartETag(partNumber, response.ETag);
         }
 
-        public override async Task<IReadOnlyList<CandleFileInfo>> GetCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
-        {
-            // Rebuild index to ensure up-to-date
-            BuildFileIndex();
-            return await base.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
-        }
-
+        // GetFileSizeAsync fallback: S3 sizes are cached in CandleFileInfoInternal.Size during index build
+        // (from ListObjectsV2 response). GetAllCandleFilesAsync uses the cached value and only calls
+        // GetFileSizeAsync when Size == 0 (e.g. for files added via StoreCandlesAsync mid-cycle).
         protected override async Task<long> GetFileSizeAsync(string path)
         {
             try
@@ -175,7 +171,6 @@ namespace S3CandlesDemo.Candles
             _bucket = bucket;
             _prefix = prefix?.Trim('/');
             _s3Client = client ?? new AmazonS3Client();
-            BuildFileIndex();
         }
 
         private string KeyFromFileName(string fileName)
@@ -184,25 +179,27 @@ namespace S3CandlesDemo.Candles
             return $"{_prefix}/{fileName}";
         }
 
-        protected override IEnumerable<string> EnumerateFiles()
+        protected override async IAsyncEnumerable<(string Path, long Size)> EnumerateFilesAsync()
         {
             var request = new ListObjectsV2Request { BucketName = _bucket, Prefix = _prefix };
             ListObjectsV2Response? response;
             do
             {
-                response = _s3Client.ListObjectsV2Async(request).GetAwaiter().GetResult();
-                foreach (var obj in response.S3Objects)
+                response = await _s3Client.ListObjectsV2Async(request);
+                foreach (var obj in response.S3Objects ?? [])
                     if (obj.Key.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
-                        yield return obj.Key;
+                        yield return (obj.Key, obj.Size ?? 0);
                 request.ContinuationToken = response.NextContinuationToken;
-            } while (response.IsTruncated);
+            } while (response.IsTruncated == true);
         }
 
         protected override string GetFileName(string filePathOrKey)
         {
             if (string.IsNullOrEmpty(filePathOrKey)) return string.Empty;
-            var idx = filePathOrKey.LastIndexOf('/');
-            return idx >= 0 ? filePathOrKey.Substring(idx + 1) : filePathOrKey;
+            if (!string.IsNullOrEmpty(_prefix) && filePathOrKey.StartsWith(_prefix))
+                filePathOrKey = filePathOrKey.Substring(_prefix.Length).TrimStart('/');
+
+            return filePathOrKey;
         }
 
         protected override Task<Stream> OpenWriteStreamAsync(string tempPath)
@@ -242,6 +239,12 @@ namespace S3CandlesDemo.Candles
             var response = await _s3Client.GetObjectAsync(request);
 
             return response.ResponseStream;
+        }
+
+        public override async Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default)
+        {
+            var configs = await PairJobConfigReader.ReadFromS3Async(_s3Client, _bucket, ConfigKey, cancellationToken);
+            return configs;
         }
     }
 }

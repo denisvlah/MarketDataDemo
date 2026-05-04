@@ -2,12 +2,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy project files and restore
-COPY S3CandlesDemo.Candles/S3CandlesDemo.Candles.csproj S3CandlesDemo.Candles/
 COPY S3CandlesDemo.KrakenHistoricalImporter/S3CandlesDemo.KrakenHistoricalImporter.csproj S3CandlesDemo.KrakenHistoricalImporter/
 RUN dotnet restore S3CandlesDemo.KrakenHistoricalImporter/S3CandlesDemo.KrakenHistoricalImporter.csproj
 
 # Copy source and publish
-COPY S3CandlesDemo.Candles/ S3CandlesDemo.Candles/
 COPY S3CandlesDemo.KrakenHistoricalImporter/ S3CandlesDemo.KrakenHistoricalImporter/
 RUN dotnet publish S3CandlesDemo.KrakenHistoricalImporter/S3CandlesDemo.KrakenHistoricalImporter.csproj \
     -c Release \

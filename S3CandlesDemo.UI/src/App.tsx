@@ -4,32 +4,29 @@ import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
 import ChartToolbar from './components/ChartToolbar';
 import CandleChart from './components/CandleChart';
-import { fetchAllFiles, fetchCandles, type Candle, type CandleFileInfoDetail } from './api/candlesApi';
+import { fetchSymbols, fetchCandles, type Candle, type SymbolIntervals } from './api/candlesApi';
 
 export default function App() {
-  const [files, setFiles] = useState<CandleFileInfoDetail[]>([]);
-  const [symbol, setSymbol] = useState('BTCUSD');
+  const [symbolData, setSymbolData] = useState<SymbolIntervals[]>([]);
+  const [symbol, setSymbol] = useState('BTC/USDT');
   const [interval, setInterval_] = useState(1440);
-  const [from, setFrom] = useState<string | null>('2025-01-01 00:00:00');
-  const [to, setTo] = useState<string | null>('2026-01-01 00:00:00');
+  const [from, setFrom] = useState<string | null>('2024-01-01 00:00:00');
+  const [to, setTo] = useState<string | null>('2024-06-01 00:00:00');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  const symbols = useMemo(() => [...new Set(files.map((f) => f.symbol))].sort(), [files]);
+  const symbols = useMemo(() => symbolData.map((s) => s.symbol), [symbolData]);
   const intervals = useMemo(
-    () =>
-      [...new Set(files.filter((f) => f.symbol === symbol).map((f) => f.intervalMinutes))].sort(
-        (a, b) => a - b,
-      ),
-    [files, symbol],
+    () => symbolData.find((s) => s.symbol === symbol)?.intervals ?? [],
+    [symbolData, symbol],
   );
 
   useEffect(() => {
-    fetchAllFiles()
-      .then((f) => {
-        setFiles(f);
+    fetchSymbols()
+      .then((data) => {
+        setSymbolData(data);
         setInitialized(true);
       })
       .catch((e) => setError(e.message));
@@ -56,7 +53,7 @@ export default function App() {
 
   return (
     <MantineProvider defaultColorScheme="dark">
-      <Stack gap={0} style={{ height: '100vh' }}>
+      <Stack gap={0} style={{ height: '100vh', overflow: 'hidden' }}>
         <ChartToolbar
           symbols={symbols}
           intervals={intervals}
@@ -72,15 +69,15 @@ export default function App() {
           onLoad={loadCandles}
         />
 
-        <div style={{ flex: 1, position: 'relative', padding: '0 16px 16px' }}>
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <LoadingOverlay visible={loading} />
           {error && (
-            <Center h={500}>
+            <Center h="100%" w="100%">
               <Text c="red" size="lg">{error}</Text>
             </Center>
           )}
           {!error && !loading && candles.length === 0 && (
-            <Center h={500}>
+            <Center h="100%" w="100%">
               <Text c="dimmed" size="lg">No data for the selected parameters.</Text>
             </Center>
           )}

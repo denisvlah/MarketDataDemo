@@ -49,9 +49,11 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
 |---------|-------------|
 | **S3CandlesDemo.Candles** | Core library — `ICandlesRepository`, binary serialization, filesystem & S3 implementations |
 | **S3CandlesDemo.Api** | ASP.NET Minimal API — HTTP endpoints for candle storage/retrieval |
-| **S3CandlesDemo.KrakenLatestCollector** | One-shot batch job — collects latest OHLCV data from Kraken API and stores to S3 |
+| **S3CandlesDemo.KrakenLatestCollector** | Scheduled batch job — collects latest OHLCV data from Kraken API and stores to S3 |
 | **S3CandlesDemo.KrakenHistoricalImporter** | One-shot batch job — imports full historical OHLCV data from Kraken's Google Drive archive into S3 |
+| **S3CandlesDemo.CsvLoader** | Scheduled batch job — fills gaps in candle data by streaming CSV files from S3 (AOT-compiled minimal API) |
 | **S3CandlesDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
+| **S3CandlesDemo.StressTests** | k6 stress tests — ramp-up load tests targeting the candles fetch endpoint |
 
 ## Docker Compose Deployment
 
@@ -60,9 +62,11 @@ A full-stack `docker-compose.yml` runs all services together with MinIO as the S
 | Service | Purpose | Port |
 |---------|---------|------|
 | `minio` | S3-compatible storage (persistent volume) | `9000` (API), `9001` (console) |
-| `minio-setup` | Init container — creates buckets, seeds `kraken-collector-config.csv` | — |
+| `minio-setup` | Init container — creates buckets, seeds shared config files | — |
 | `api` | Candles HTTP API | `5044` |
-| `kraken-collector` | Kraken data collector (runs once, then exits) | `5099` (health) |
+| `kraken-collector` | Kraken data collector (scheduled daily job) | `5099` (health) |
+| `csv-loader` | CSV gap-filling loader (scheduled daily job, AOT-compiled) | `5043` (health) |
+| `k6-stress` | k6 stress test runner (opt-in, `stress` profile only) | — |
 
 ```bash
 # Start everything
@@ -78,10 +82,55 @@ docker compose restart kraken-collector
 open http://localhost:9001  # minioadmin / minioadmin
 ```
 
-The collector reads its schedule from `kraken-collector-config.csv` stored in the `candles-config` S3 bucket. On first start, `minio-setup` seeds it from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`. Edit it via the MinIO console without rebuilding images.
+**Unified Single-Bucket Layout:**
+All data is stored in a **single S3 bucket** under three fixed path prefixes:
+
+| Prefix | Content |
+|--------|---------|
+| `candles/` | Binary `.bin` candle files served by the API |
+| `csv/` | CSV source files consumed by `S3CandlesDemo.CsvLoader` |
+| `config/` | Job config CSV (`config/kraken-collector-config.csv`) |
+
+All scheduled jobs (Kraken collector, CSV loader, historical importer) read symbols and intervals via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared bucket and returns a list of `PairJobConfig` records. This file is seeded by `minio-setup` on first start from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`.
+
+## Stress Testing (k6)
+
+The `S3CandlesDemo.StressTests/` folder contains a [k6](https://k6.io/) load test targeting the `GET /candles/{symbol}/{intervalMinutes}` endpoint.
+
+The test ramps virtual users (VUs) in stages (5 → 20 → 50 → 0) and reports average response time, 95th-percentile latency, and failed request rate.
+
+**Run via Docker Compose** (requires the `api` and MinIO stack to be up):
+
+```bash
+# Start the core stack first (if not already running)
+docker compose up -d
+
+# Run k6 against the running api container
+docker compose --profile stress run --rm k6-stress
+```
+
+**Customise targets** via environment variables:
+
+```bash
+docker compose --profile stress run --rm \
+  -e SYMBOL="ETH/USD" \
+  -e INTERVAL="60" \
+  -e FROM="2024-06-01T00:00:00Z" \
+  -e TO="2024-06-30T23:59:59Z" \
+  k6-stress
+```
+
+**Run locally** (without Docker, requires `k6` installed):
+
+```bash
+cd S3CandlesDemo.StressTests
+k6 run candles-stress.js
+
+# With live browser dashboard at http://localhost:5665
+k6 run --out web-dashboard candles-stress.js
+```
 
 ## Local Development (without Docker)
-
 ```bash
 # Start MinIO only
 bash startMinio.sh
@@ -95,6 +144,15 @@ dotnet run --project S3CandlesDemo.KrakenLatestCollector
 # Run tests
 dotnet test
 ```
+
+## S3 File Index Polling
+
+The API maintains an in-memory index of all candle files stored in S3 for fast query processing (no `ListObjects` call per request). The index is built once at startup and then refreshed every **1 minute** by a background service (`FileIndexPollingService`).
+
+This means:
+- Files added externally (e.g. by the collector or importer) will be visible to the API within ~1 minute.
+- Write operations through the API update the index immediately and do not wait for the next poll.
+- The polling interval can be adjusted in `FileIndexPollingService` in `S3CandlesDemo.Api/Program.cs`.
 
 ## Additional Recommendations
 

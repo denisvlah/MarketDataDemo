@@ -11,9 +11,11 @@ namespace S3CandlesDemo.Candles
 
         // Inherits GetCandleFilesAsync, RemoveCandleFilesAsync, RemoveCandleFileAsync from base
 
-        protected override IEnumerable<string> EnumerateFiles()
+        protected override async IAsyncEnumerable<(string Path, long Size)> EnumerateFilesAsync()
         {
-            return Directory.EnumerateFiles(_baseLocation, "*.bin");
+            foreach (var file in Directory.EnumerateFiles(_baseLocation, "*.bin"))
+                yield return (file, new FileInfo(file).Length);
+            await Task.CompletedTask;
         }
 
         protected override string GetFileName(string filePathOrKey)
@@ -23,7 +25,7 @@ namespace S3CandlesDemo.Candles
 
         protected override Task<Stream> OpenWriteStreamAsync(string tempPath)
         {
-            Stream s = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            Stream s = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 65536);
             return Task.FromResult(s);
         }
 
@@ -35,9 +37,17 @@ namespace S3CandlesDemo.Candles
 
         protected override Task<Stream> OpenReadStreamAsync(string filePathOrKey, long offset)
         {
-            Stream s = new FileStream(filePathOrKey, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Stream s = new FileStream(filePathOrKey, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 65536, FileOptions.SequentialScan);
             s.Seek(offset, SeekOrigin.Begin);
             return Task.FromResult(s);
+        }
+
+        public override Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default)
+        {
+            var filePath = Path.Combine(_baseLocation, "config", "kraken-collector-config.csv");
+            if (!File.Exists(filePath))
+                return Task.FromResult<IReadOnlyList<PairJobConfig>>(Array.Empty<PairJobConfig>());
+            return Task.FromResult<IReadOnlyList<PairJobConfig>>(PairJobConfigReader.ReadFromFile(filePath));
         }
     }
 }

@@ -81,7 +81,7 @@ public class KrakenCollectorIntegrationTests
         try
         {
             var objects = await _fixture.Client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = bucket });
-            foreach (var obj in objects.S3Objects)
+            foreach (var obj in objects.S3Objects ?? [])
                 await _fixture.Client.DeleteObjectAsync(bucket, obj.Key);
         }
         catch { }
@@ -102,7 +102,7 @@ public class KrakenCollectorIntegrationTests
             var cutoff = new DateTime(2024, 6, 2, 0, 0, 0, DateTimeKind.Utc); // 24 hours of 60-min candles = 24 candles
             fakeKraken.DataEndUtc = cutoff;
 
-            var job = new CollectorJobConfig("TESTBTC", "XBTUSD", 60, start);
+            var job = new PairJobConfig("TESTBTC", "XBTUSD", 60, start);
 
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
             var collector = new CandleCollector(repo, fakeKraken, loggerFactory.CreateLogger<CandleCollector>(), TimeSpan.Zero);
@@ -157,7 +157,7 @@ public class KrakenCollectorIntegrationTests
             // Now run collector — it should resume from hour 6, not hour 0
             var fakeKraken = new FakeKrakenOhlcService(maxCandlesPerBatch: 50);
             fakeKraken.DataEndUtc = cutoff;
-            var job = new CollectorJobConfig("RESUMETEST", "XBTUSD", 60, start);
+            var job = new PairJobConfig("RESUMETEST", "XBTUSD", 60, start);
 
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
             var collector = new CandleCollector(repo, fakeKraken, loggerFactory.CreateLogger<CandleCollector>(), TimeSpan.Zero);
@@ -194,7 +194,7 @@ public class KrakenCollectorIntegrationTests
             var cutoff = new DateTime(2024, 8, 1, 12, 0, 0, DateTimeKind.Utc); // 12 hours
             fakeKraken.DataEndUtc = cutoff;
 
-            var jobs = new List<CollectorJobConfig>
+            var jobs = new List<PairJobConfig>
             {
                 new("PAIR1", "XBTUSD", 60, start),
                 new("PAIR2", "ETHUSD", 60, start),
@@ -233,7 +233,7 @@ public class KrakenCollectorIntegrationTests
             var start = new DateTime(2024, 9, 1, 0, 0, 0, DateTimeKind.Utc);
             fakeKraken.DataEndUtc = start; // no data available
 
-            var job = new CollectorJobConfig("NODATA", "XBTUSD", 60, start);
+            var job = new PairJobConfig("NODATA", "XBTUSD", 60, start);
 
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
             var collector = new CandleCollector(repo, fakeKraken, loggerFactory.CreateLogger<CandleCollector>(), TimeSpan.Zero);
@@ -267,7 +267,7 @@ public class KrakenCollectorIntegrationTests
             var cutoff = new DateTime(2024, 10, 2, 0, 0, 0, DateTimeKind.Utc); // 24 hours / 60-min = 24 candles
             fakeKraken.DataEndUtc = cutoff;
 
-            var job = new CollectorJobConfig("PAGTEST", "XBTUSD", 60, start);
+            var job = new PairJobConfig("PAGTEST", "XBTUSD", 60, start);
 
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
             var collector = new CandleCollector(repo, fakeKraken, loggerFactory.CreateLogger<CandleCollector>(), TimeSpan.Zero);
@@ -308,7 +308,7 @@ public class KrakenCollectorIntegrationTests
             fakeKraken.DataEndUtc = cutoff;
 
             // Asset pair "BTCUSD" but Kraken uses "XBTUSD"
-            var job = new CollectorJobConfig("BTCUSD", "XBTUSD", 60, start);
+            var job = new PairJobConfig("BTCUSD", "XBTUSD", 60, start);
 
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
             var collector = new CandleCollector(repo, fakeKraken, loggerFactory.CreateLogger<CandleCollector>(), TimeSpan.Zero);
@@ -359,7 +359,7 @@ public class KrakenCollectorIntegrationTests
             var fakeKraken = new FakeKrakenOhlcService(maxCandlesPerBatch: 50);
             fakeKraken.DataEndUtc = cutoff;
 
-            var job = new CollectorJobConfig("BACKFILL", "XBTUSD", 60, earlierStart);
+            var job = new PairJobConfig("BACKFILL", "XBTUSD", 60, earlierStart);
 
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
             var collector = new CandleCollector(repo, fakeKraken, loggerFactory.CreateLogger<CandleCollector>(), TimeSpan.Zero);
@@ -404,8 +404,8 @@ public class KrakenCollectorIntegrationTests
                 InputStream = stream
             });
 
-            // Read it back via CsvConfigReader.ReadFromS3Async
-            var jobs = await CsvConfigReader.ReadFromS3Async(_fixture.Client, bucket, key);
+            // Read it back via PairJobConfigReader.ReadFromS3Async
+            var jobs = await PairJobConfigReader.ReadFromS3Async(_fixture.Client, bucket, key);
 
             Assert.Equal(3, jobs.Count);
             Assert.Equal("BTCUSD", jobs[0].AssetPair);

@@ -1,5 +1,4 @@
 using Amazon.S3;
-using Amazon.S3.Model;
 using Kraken.Net.Clients;
 using Kraken.Net.Interfaces.Clients;
 using S3CandlesDemo.Candles;
@@ -98,27 +97,8 @@ _ = Task.Run(async () =>
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     try
     {
-        // Read config CSV from S3, fall back to local file
-        var s3Config = app.Services.GetRequiredService<IConfiguration>().GetSection("S3Candles");
-        var configBucket = s3Config.GetValue<string>("ConfigBucket");
-        var configKey = s3Config.GetValue<string>("ConfigKey");
-
-        List<CollectorJobConfig> jobs;
-        if (!string.IsNullOrEmpty(configBucket) && !string.IsNullOrEmpty(configKey))
-        {
-            logger.LogInformation("Reading config from S3: {Bucket}/{Key}", configBucket, configKey);
-            var s3Client = app.Services.GetRequiredService<IAmazonS3>();
-            jobs = await CsvConfigReader.ReadFromS3Async(s3Client, configBucket, configKey);
-        }
-        else
-        {
-            var csvPath = Path.Combine(AppContext.BaseDirectory, "kraken-collector-config.csv");
-            if (!File.Exists(csvPath))
-                csvPath = Path.Combine(Directory.GetCurrentDirectory(), "kraken-collector-config.csv");
-
-            logger.LogInformation("No S3 config source configured, reading config from local file: {CsvPath}", csvPath);
-            jobs = CsvConfigReader.ReadFromFile(csvPath);
-        }
+        var repo = app.Services.GetRequiredService<ICandlesRepository>();
+        var jobs = await repo.GetJobConfigAsync();
 
         logger.LogInformation("Loaded {Count} collection jobs", jobs.Count);
 

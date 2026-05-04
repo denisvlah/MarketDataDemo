@@ -1,4 +1,4 @@
-using S3CandlesDemo.KrakenLatestCollector;
+using S3CandlesDemo.Candles;
 
 namespace S3CandlesDemo.Tests;
 
@@ -14,7 +14,7 @@ public class CsvConfigReaderTests
             "SOLUSD,SOLUSD,15,2025-01-01"
         };
 
-        var result = CsvConfigReader.ParseLines(lines);
+        var result = PairJobConfigReader.ParseLines(lines);
 
         Assert.Equal(3, result.Count);
 
@@ -35,7 +35,7 @@ public class CsvConfigReaderTests
     public void ParseLines_EmptyLines_AreSkipped()
     {
         var lines = new[] { "", "BTCUSD,XBTUSD,60,2024-01-01", "", "  " };
-        var result = S3CandlesDemo.KrakenLatestCollector.CsvConfigReader.ParseLines(lines);
+        var result = PairJobConfigReader.ParseLines(lines);
         Assert.Single(result);
         Assert.Equal("BTCUSD", result[0].AssetPair);
     }
@@ -44,7 +44,7 @@ public class CsvConfigReaderTests
     public void ParseLines_WrongColumnCount_Throws()
     {
         var lines = new[] { "BTCUSD,XBTUSD,60" }; // missing start date
-        var ex = Assert.Throws<FormatException>(() => CsvConfigReader.ParseLines(lines));
+        var ex = Assert.Throws<FormatException>(() => PairJobConfigReader.ParseLines(lines));
         Assert.Contains("expected 4 columns", ex.Message);
     }
 
@@ -52,7 +52,7 @@ public class CsvConfigReaderTests
     public void ParseLines_InvalidInterval_Throws()
     {
         var lines = new[] { "BTCUSD,XBTUSD,abc,2024-01-01" };
-        var ex = Assert.Throws<FormatException>(() => CsvConfigReader.ParseLines(lines));
+        var ex = Assert.Throws<FormatException>(() => PairJobConfigReader.ParseLines(lines));
         Assert.Contains("invalid interval", ex.Message);
     }
 
@@ -60,7 +60,7 @@ public class CsvConfigReaderTests
     public void ParseLines_UnsupportedInterval_Throws()
     {
         var lines = new[] { "BTCUSD,XBTUSD,7,2024-01-01" }; // 7 is not a valid Kraken interval
-        var ex = Assert.Throws<FormatException>(() => CsvConfigReader.ParseLines(lines));
+        var ex = Assert.Throws<FormatException>(() => PairJobConfigReader.ParseLines(lines));
         Assert.Contains("not a valid Kraken interval", ex.Message);
     }
 
@@ -68,7 +68,7 @@ public class CsvConfigReaderTests
     public void ParseLines_InvalidDate_Throws()
     {
         var lines = new[] { "BTCUSD,XBTUSD,60,not-a-date" };
-        var ex = Assert.Throws<FormatException>(() => CsvConfigReader.ParseLines(lines));
+        var ex = Assert.Throws<FormatException>(() => PairJobConfigReader.ParseLines(lines));
         Assert.Contains("invalid date", ex.Message);
     }
 
@@ -79,7 +79,7 @@ public class CsvConfigReaderTests
         foreach (var interval in validIntervals)
         {
             var lines = new[] { $"TEST,TEST,{interval},2024-01-01" };
-            var result = CsvConfigReader.ParseLines(lines);
+            var result = PairJobConfigReader.ParseLines(lines);
             Assert.Single(result);
             Assert.Equal(interval, result[0].IntervalMinutes);
         }
@@ -89,7 +89,7 @@ public class CsvConfigReaderTests
     public void ParseLines_WhitespaceInValues_IsTrimmed()
     {
         var lines = new[] { "  BTCUSD , XBTUSD , 60 , 2024-01-01 " };
-        var result = CsvConfigReader.ParseLines(lines);
+        var result = PairJobConfigReader.ParseLines(lines);
         Assert.Single(result);
         Assert.Equal("BTCUSD", result[0].AssetPair);
         Assert.Equal("XBTUSD", result[0].KrakenPair);
@@ -99,6 +99,6 @@ public class CsvConfigReaderTests
     [Fact]
     public void ReadFromFile_MissingFile_ThrowsFileNotFound()
     {
-        Assert.Throws<FileNotFoundException>(() => CsvConfigReader.ReadFromFile("/nonexistent/path.csv"));
+        Assert.Throws<FileNotFoundException>(() => PairJobConfigReader.ReadFromFile("/nonexistent/path.csv"));
     }
 }

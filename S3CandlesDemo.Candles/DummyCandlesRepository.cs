@@ -23,5 +23,15 @@
 
         public Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult((IReadOnlyList<CandleFileInfoDetail>)Array.Empty<CandleFileInfoDetail>());
+
+        public Task RebuildFileIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<PairJobConfig>> GetJobConfigAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<PairJobConfig>>(Array.Empty<PairJobConfig>());
+
+        public List<(DateTime Start, DateTime End)> GetGaps(string symbol, int intervalMinutes, DateTime minDate)
+        {
+            return new List<(DateTime Start, DateTime End)>();
+        }
     }
 }
