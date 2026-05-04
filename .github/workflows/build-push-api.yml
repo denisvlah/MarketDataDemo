@@ -19,6 +19,7 @@ env:
   AWS_REGION: us-east-1          # Change to your ECR region
   ECR_REPOSITORY: s3-candles-demo  # Single ECR repository for all services
   IMAGE_PREFIX: api                # Tag prefix — e.g. api-latest, api-<sha>
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-and-push:
