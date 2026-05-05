@@ -59,12 +59,25 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
 // This avoids rebuilding the index on every API request while still catching externally added files.
 builder.Services.AddHostedService<FileIndexPollingService>();
 
+// Log method, path, query, status code, and duration for every request.
+// Request/response bodies are excluded to avoid memory overhead on streaming endpoints.
+builder.Services.AddHttpLogging(logging =>
+{
+    logging.LoggingFields = Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestMethod
+        | Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestPath
+        | Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestQuery
+        | Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.ResponseStatusCode
+        | Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.Duration;
+});
+
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
 
 var app = builder.Build();
+
+app.UseHttpLogging();
 
 if (app.Environment.IsDevelopment())
 {
