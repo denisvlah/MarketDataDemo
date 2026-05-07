@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
     <PackageReference Include="MartinCostello.Logging.XUnit" Version="0.4.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" />
     <PackageReference Include="xunit" Version="2.4.2" />
@@ -32,6 +33,13 @@
     <ProjectReference Include="..\S3CandlesDemo.Candles\S3CandlesDemo.Candles.csproj" />
     <ProjectReference Include="..\S3CandlesDemo.Api\S3CandlesDemo.Api.csproj" />
     <ProjectReference Include="..\S3CandlesDemo.KrakenLatestCollector\S3CandlesDemo.KrakenLatestCollector.csproj" />
+  </ItemGroup>
+
+  <!-- Copy .env file to output directory on build -->
+  <ItemGroup>
+    <None Update=".env">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
