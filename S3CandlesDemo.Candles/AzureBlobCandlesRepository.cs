@@ -100,8 +100,17 @@ namespace S3CandlesDemo.Candles
             var uploadTask = Task.Run(async () =>
             {
                 await using var readStream = pipe.Reader.AsStream();
-                var blob = GetBlockBlobClient(tempBlobName);
-                await blob.UploadAsync(readStream, new BlobUploadOptions());
+                try
+                {
+                    var blob = GetBlockBlobClient(tempBlobName);
+                    await blob.UploadAsync(readStream, new BlobUploadOptions());
+                }
+                catch (Exception ex)
+                {
+                    await pipe.Writer.CompleteAsync(ex);
+                    return;
+                }
+                
             });
 
             _pendingUploads[tempPath] = (uploadTask, tempBlobName);
@@ -158,7 +167,7 @@ namespace S3CandlesDemo.Candles
             if (_prefix is not null && !filePathOrKey.StartsWith(_prefix))
                 blobName = BlobName(GetFileName(filePathOrKey));
 
-            var pipe = new Pipe(DownloadPipeOptions);
+            var pipe = new Pipe(DownloadPipeOptions);            
 
             var downloadTask = Task.Run(async () =>
             {
@@ -175,12 +184,11 @@ namespace S3CandlesDemo.Candles
                 catch (Exception ex)
                 {
                     await pipe.Writer.CompleteAsync(ex);
-                    throw;
+                    
                 }
             });
 
-            Stream result = new BackgroundTaskStream(pipe.Reader.AsStream(), downloadTask);
-            return Task.FromResult(result);
+            return Task.FromResult(pipe.Reader.AsStream());
         }
 
         // ------------------------------------------------------------------
@@ -240,46 +248,6 @@ namespace S3CandlesDemo.Candles
             }
             catch { return Array.Empty<PairJobConfig>(); }
         }
-
-        // ------------------------------------------------------------------
-        // BackgroundTaskStream — mirrors GcsCandlesRepository's implementation
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// Wraps a stream and awaits a background <see cref="Task"/> on disposal,
-        /// rethrowing any exception so callers never silently lose errors.
-        /// </summary>
-        private sealed class BackgroundTaskStream(Stream inner, Task backgroundTask) : Stream
-        {
-            public override bool CanRead  => inner.CanRead;
-            public override bool CanSeek  => false;
-            public override bool CanWrite => false;
-            public override long Length   => throw new NotSupportedException();
-            public override long Position
-            {
-                get => throw new NotSupportedException();
-                set => throw new NotSupportedException();
-            }
-
-            public override int  Read(byte[] buffer, int offset, int count)              => inner.Read(buffer, offset, count);
-            public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => inner.ReadAsync(buffer, offset, count, ct);
-            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)   => inner.ReadAsync(buffer, ct);
-            public override void Flush()                                                 => inner.Flush();
-            public override long Seek(long offset, SeekOrigin origin)                   => throw new NotSupportedException();
-            public override void SetLength(long value)                                  => throw new NotSupportedException();
-            public override void Write(byte[] buffer, int offset, int count)            => throw new NotSupportedException();
-
-            public override async ValueTask DisposeAsync()
-            {
-                await inner.DisposeAsync();
-                await backgroundTask; // rethrows if the download faulted
-            }
-
-            protected override void Dispose(bool disposing)
-            {
-                if (disposing) inner.Dispose();
-                base.Dispose(disposing);
-            }
-        }
+        
     }
 }
