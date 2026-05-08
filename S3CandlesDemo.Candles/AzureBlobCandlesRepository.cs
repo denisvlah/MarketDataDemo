@@ -214,24 +214,6 @@ namespace S3CandlesDemo.Candles
         }
 
         // ------------------------------------------------------------------
-        // Override: file size (Azure blob metadata)
-        // ------------------------------------------------------------------
-
-        protected override async Task<long> GetFileSizeAsync(string path)
-        {
-            try
-            {
-                var blobName = path;
-                if (_prefix is not null && !path.StartsWith(_prefix))
-                    blobName = BlobName(GetFileName(path));
-
-                var props = await _container.GetBlobClient(blobName).GetPropertiesAsync();
-                return props.Value.ContentLength;
-            }
-            catch { return 0; }
-        }
-
-        // ------------------------------------------------------------------
         // Override: job config from Azure Blob Storage
         // ------------------------------------------------------------------
 

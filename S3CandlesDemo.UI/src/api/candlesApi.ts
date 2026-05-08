@@ -5,7 +5,7 @@ export interface SymbolIntervals {
   intervals: number[];
 }
 
-export interface CandleFileInfoDetail {
+export interface CandleFileInfo {
   symbol: string;
   intervalMinutes: number;
   path: string;
@@ -32,7 +32,7 @@ export async function fetchSymbols(): Promise<SymbolIntervals[]> {
   return res.json();
 }
 
-export async function fetchAllFiles(): Promise<CandleFileInfoDetail[]> {
+export async function fetchAllFiles(): Promise<CandleFileInfo[]> {
   const res = await fetch(`${BASE_URL}/candles/files`);
   if (!res.ok) throw new Error(`Failed to fetch files: ${res.status}`);
   return res.json();

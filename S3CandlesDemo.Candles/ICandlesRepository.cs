@@ -19,7 +19,7 @@ namespace S3CandlesDemo.Candles
         Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default);
 
         // List all files across all symbols/intervals
-        Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<CandleFileInfo>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default);
 
         // Rebuild the in-memory file index from the underlying storage
         Task RebuildFileIndexAsync(CancellationToken cancellationToken = default);
@@ -40,14 +40,6 @@ namespace S3CandlesDemo.Candles
     // Expose CandleFileInfo for consumers
     public class CandleFileInfo
     {
-        public string Path { get; set; } = string.Empty;
-        public DateTime Start { get; set; }
-        public DateTime End { get; set; }
-        public int Version { get; set; }
-    }
-
-    public class CandleFileInfoDetail
-    {
         public string Symbol { get; set; } = string.Empty;
         public int IntervalMinutes { get; set; }
         public string Path { get; set; } = string.Empty;
@@ -57,5 +49,5 @@ namespace S3CandlesDemo.Candles
         public long FileSize { get; set; }
         public long CandleCount { get; set; }
     }
-    
+
 }

@@ -185,8 +185,6 @@ static class JsonStreamBytes
 [JsonSerializable(typeof(List<Candle>))]
 [JsonSerializable(typeof(IReadOnlyList<CandleFileInfo>))]
 [JsonSerializable(typeof(CandleFileInfo))]
-[JsonSerializable(typeof(IReadOnlyList<CandleFileInfoDetail>))]
-[JsonSerializable(typeof(CandleFileInfoDetail))]
 [JsonSerializable(typeof(List<SymbolIntervals>))]
 [JsonSerializable(typeof(SymbolIntervals))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext

@@ -249,24 +249,6 @@ namespace S3CandlesDemo.Candles
         }
 
         // ------------------------------------------------------------------
-        // Override: file size (GCS metadata)
-        // ------------------------------------------------------------------
-
-        protected override async Task<long> GetFileSizeAsync(string path)
-        {
-            try
-            {
-                var objectName = path;
-                if (_prefix is not null && !path.StartsWith(_prefix))
-                    objectName = ObjectName(GetFileName(path));
-
-                var obj = await _storageClient.GetObjectAsync(_bucket, objectName);
-                return (long)(obj.Size ?? 0);
-            }
-            catch { return 0; }
-        }
-
-        // ------------------------------------------------------------------
         // Override: job config from GCS
         // ------------------------------------------------------------------
 

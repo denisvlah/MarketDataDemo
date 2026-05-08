@@ -172,7 +172,10 @@ namespace S3CandlesDemo.Candles
                 _publicInfoCache = new CandleFileInfo { Path = Uri.UnescapeDataString(Path), Start = Start, End = End, Version = Version };            
             }
             // Decode the path so callers never see percent-encoded symbols.
+            // Symbol and IntervalMinutes are filled in by GetAllCandleFilesAsync where the key is available.
             public CandleFileInfo ToPublic() => _publicInfoCache;
+            public CandleFileInfo ToPublic(string symbol, int intervalMinutes) =>
+                new CandleFileInfo { Symbol = symbol, IntervalMinutes = intervalMinutes, Path = Uri.UnescapeDataString(Path), Start = Start, End = End, Version = Version, FileSize = Size, CandleCount = Size / Candle.CandleByteSize };
         }
 
         // ICandlesRepository additions
@@ -209,37 +212,18 @@ namespace S3CandlesDemo.Candles
                 kvp.Value.RemoveAll(f => Uri.UnescapeDataString(f.Path) == fileInfo.Path);
         }
 
-        public virtual async Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)
+        public virtual Task<IReadOnlyList<CandleFileInfo>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)
         {
-            var result = new List<CandleFileInfoDetail>();
+            var result = new List<CandleFileInfo>();
             foreach (var kvp in _fileIndex)
             {
                 var (symbol, interval) = kvp.Key;
                 foreach (var file in kvp.Value)
-                {
-                    // Use the size cached during index build; fall back to a live query only if missing.
-                    long fileSize = file.Size > 0 ? file.Size : await GetFileSizeAsync(file.Path);
-                    long candleCount = fileSize / Candle.CandleByteSize;
-                    result.Add(new CandleFileInfoDetail
-                    {
-                        Symbol = symbol,
-                        IntervalMinutes = interval,
-                        Path = file.Path,
-                        Start = file.Start,
-                        End = file.End,
-                        Version = file.Version,
-                        FileSize = fileSize,
-                        CandleCount = candleCount
-                    });
-                }
+                    result.Add(file.ToPublic(symbol, interval));
             }
-            return (IReadOnlyList<CandleFileInfoDetail>)result;
+            return Task.FromResult((IReadOnlyList<CandleFileInfo>)result);
         }
 
-        protected virtual Task<long> GetFileSizeAsync(string path)
-        {
-            try { return Task.FromResult(new FileInfo(path).Length); } catch { return Task.FromResult(0L); }
-        }
 
         protected virtual Task RemovePhysicalFile(string path)
         {

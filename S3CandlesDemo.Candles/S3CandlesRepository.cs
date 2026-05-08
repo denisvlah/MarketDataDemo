@@ -13,7 +13,7 @@ namespace S3CandlesDemo.Candles
             const int minPartSize = 5 * 1024 * 1024; // 5MB — S3 minimum part size
 
             // Upload to a temp key first; we don't know the final filename until all candles are consumed (need min/max timestamps)
-            string tempKey = KeyFromFileName($"{symbol}_{intervalMinutes}_{Guid.NewGuid()}.tmp");
+            string tempKey = KeyFromFileName($"{EncodeSymbol(symbol)}_{intervalMinutes}_{Guid.NewGuid()}.tmp");
 
             var initResponse = await _s3Client.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
             {
@@ -97,7 +97,7 @@ namespace S3CandlesDemo.Candles
                     newVersion = intersecting.Max(f => f.Version) + 1;
             }
 
-            string newFileName = $"{symbol}_{intervalMinutes}_{start:yyyyMMdd'T'HHmmss}_{end:yyyyMMdd'T'HHmmss}_v{newVersion}.bin";
+            string newFileName = $"{EncodeSymbol(symbol)}_{intervalMinutes}_{start:yyyyMMdd'T'HHmmss}_{end:yyyyMMdd'T'HHmmss}_v{newVersion}.bin";
             var finalKey = KeyFromFileName(newFileName);
 
             // Server-side copy to final key, then delete temp (no data re-transfer)
@@ -131,22 +131,6 @@ namespace S3CandlesDemo.Candles
             return new PartETag(partNumber, response.ETag);
         }
 
-        // GetFileSizeAsync fallback: S3 sizes are cached in CandleFileInfoInternal.Size during index build
-        // (from ListObjectsV2 response). GetAllCandleFilesAsync uses the cached value and only calls
-        // GetFileSizeAsync when Size == 0 (e.g. for files added via StoreCandlesAsync mid-cycle).
-        protected override async Task<long> GetFileSizeAsync(string path)
-        {
-            try
-            {
-                var key = path;
-                if (!string.IsNullOrEmpty(_prefix) && !path.StartsWith(_prefix))
-                    key = KeyFromFileName(GetFileName(path));
-                var meta = await _s3Client.GetObjectMetadataAsync(_bucket, key);
-                return meta.ContentLength;
-            }
-            catch { return 0; }
-        }
-
         public override async Task RemoveCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
         {
             var files = await GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
@@ -155,12 +139,20 @@ namespace S3CandlesDemo.Candles
 
         public override async Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default)
         {
-            var key = fileInfo.Path;
+            // fileInfo.Path is decoded (Uri.UnescapeDataString applied by ToPublic()).
+            // Find the actual encoded internal path so the S3 key is correct.
+            string? encodedPath = null;
+            foreach (var kvp in _fileIndex)
+            {
+                var match = kvp.Value.FirstOrDefault(f => Uri.UnescapeDataString(f.Path) == fileInfo.Path);
+                if (match != null) { encodedPath = match.Path; break; }
+            }
+            var key = encodedPath ?? fileInfo.Path;
             if (!string.IsNullOrEmpty(_prefix) && !key.StartsWith(_prefix))
-                key = KeyFromFileName(Path.GetFileName(fileInfo.Path));
+                key = KeyFromFileName(GetFileName(key));
             await _s3Client.DeleteObjectAsync(_bucket, key, cancellationToken);
             foreach (var kvp in _fileIndex)
-                kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
+                kvp.Value.RemoveAll(f => Uri.UnescapeDataString(f.Path) == fileInfo.Path);
         }
         private readonly IAmazonS3 _s3Client;
         private readonly string _bucket;
