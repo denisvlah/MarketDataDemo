@@ -19,6 +19,10 @@ namespace S3CandlesDemo.Candles
             _baseLocation = baseLocation;
         }
 
+        // URL-encode/decode symbol so that symbols like "BTC/USD" are safe in file names.
+        protected static string EncodeSymbol(string symbol) => Uri.EscapeDataString(symbol);
+        protected static string DecodeSymbol(string encoded) => Uri.UnescapeDataString(encoded);
+
         protected async Task BuildFileIndexAsync()
         {
             // Build into a fresh local dict; sort lists; then atomically publish.
@@ -30,7 +34,8 @@ namespace S3CandlesDemo.Candles
                 var name = GetFileName(file);
                 var match = FilePattern.Match(name);
                 if (!match.Success) continue;
-                var symbol = match.Groups["symbol"].Value;
+                // Decode percent-encoded symbol (e.g. "BTC%2FUSD" → "BTC/USD")
+                var symbol = DecodeSymbol(match.Groups["symbol"].Value);
                 var interval = int.Parse(match.Groups["interval"].Value);
                 var start = DateTime.ParseExact(match.Groups["start"].Value, "yyyyMMdd'T'HHmmss", null);
                 var end = DateTime.ParseExact(match.Groups["end"].Value, "yyyyMMdd'T'HHmmss", null);
@@ -59,7 +64,8 @@ namespace S3CandlesDemo.Candles
 
         public virtual async Task StoreCandlesAsync(string symbol, int intervalMinutes, IAsyncEnumerable<Candle> candles, CancellationToken cancellationToken = default)
         {
-            string tempFileName = $"{symbol}_{intervalMinutes}_{Guid.NewGuid()}.tmp";
+            var encodedSymbol = EncodeSymbol(symbol);
+            string tempFileName = $"{encodedSymbol}_{intervalMinutes}_{Guid.NewGuid()}.tmp";
             string tempFilePath = PathCombine(_baseLocation, tempFileName);
             DateTime? minTimestamp = null, maxTimestamp = null;
             byte[] buffer = new byte[Candle.CandleByteSize];
@@ -90,7 +96,7 @@ namespace S3CandlesDemo.Candles
                 if (intersecting.Any())
                     newVersion = intersecting.Max(f => f.Version) + 1;
             }
-            string newFileName = $"{symbol}_{intervalMinutes}_{start:yyyyMMdd'T'HHmmss}_{end:yyyyMMdd'T'HHmmss}_v{newVersion}.bin";
+            string newFileName = $"{encodedSymbol}_{intervalMinutes}_{start:yyyyMMdd'T'HHmmss}_{end:yyyyMMdd'T'HHmmss}_v{newVersion}.bin";
             string newFilePath = PathCombine(_baseLocation, newFileName);
             await MoveTempToFinalAsync(tempFilePath, newFilePath);
             var info = new CandleFileInfoInternal(newFilePath, start, end, newVersion);
@@ -148,6 +154,7 @@ namespace S3CandlesDemo.Candles
         // Internal version for storage, maps to public CandleFileInfo
         protected class CandleFileInfoInternal
         {
+            private readonly CandleFileInfo _publicInfoCache;
             public string Path { get; }
             public DateTime Start { get; }
             public DateTime End { get; }
@@ -162,8 +169,10 @@ namespace S3CandlesDemo.Candles
                 End = end;
                 Version = version;
                 Size = size;
+                _publicInfoCache = new CandleFileInfo { Path = Uri.UnescapeDataString(Path), Start = Start, End = End, Version = Version };            
             }
-            public S3CandlesDemo.Candles.CandleFileInfo ToPublic() => new S3CandlesDemo.Candles.CandleFileInfo { Path = Path, Start = Start, End = End, Version = Version };
+            // Decode the path so callers never see percent-encoded symbols.
+            public CandleFileInfo ToPublic() => _publicInfoCache;
         }
 
         // ICandlesRepository additions
@@ -187,8 +196,17 @@ namespace S3CandlesDemo.Candles
 
         public virtual async Task RemoveCandleFileAsync(CandleFileInfo fileInfo, CancellationToken cancellationToken = default)
         {
-            await RemovePhysicalFile(fileInfo.Path);
-            foreach (var kvp in _fileIndex) kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
+            // fileInfo.Path is decoded; find the matching internal entry (which stores the encoded path).
+            string? actualPath = null;
+            foreach (var kvp in _fileIndex)
+            {
+                var match = kvp.Value.FirstOrDefault(f => Uri.UnescapeDataString(f.Path) == fileInfo.Path);
+                if (match != null) { actualPath = match.Path; break; }
+            }
+            if (actualPath != null)
+                await RemovePhysicalFile(actualPath);
+            foreach (var kvp in _fileIndex)
+                kvp.Value.RemoveAll(f => Uri.UnescapeDataString(f.Path) == fileInfo.Path);
         }
 
         public virtual async Task<IReadOnlyList<CandleFileInfoDetail>> GetAllCandleFilesAsync(CancellationToken cancellationToken = default)

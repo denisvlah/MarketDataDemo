@@ -33,21 +33,30 @@ public class AzureBlobCandlesRepositoryIntegrationTests : IAsyncLifetime
         var value = Environment.GetEnvironmentVariable(name);
         if (!string.IsNullOrWhiteSpace(value)) return value;
 
-        // Fall back to reading the local .env file in the same directory as this test assembly.
-        var envFile = Path.Combine(AppContext.BaseDirectory, ".env");
-        if (File.Exists(envFile))
+        // Walk up from the current directory (max 15 levels) searching for a .env file.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (int i = 0; i < 15; i++)
         {
-            var lines = File.ReadAllLines(envFile);
-            foreach (var line in lines)
+            if (dir is null) break;
+            var envFile = Path.Combine(dir.FullName, ".env");
+            if (File.Exists(envFile))
             {
-                if (line.StartsWith(name + "=", StringComparison.Ordinal))
+                var lines = File.ReadAllLines(envFile);
+                foreach (var line in lines)
                 {
-                    var result = line[(name.Length + 1)..].Trim();
-                    Console.WriteLine($"[GetEnv] Found '{name}' with value length: {result.Length}");
-                    return result;
+                    if (line.StartsWith(name + "=", StringComparison.Ordinal))
+                    {
+                        var result = line[(name.Length + 1)..].Trim();
+                        Console.WriteLine($"[GetEnv] Found '{name}' in '{envFile}' with value length: {result.Length}");
+                        return result;
+                    }
                 }
+                // .env found but key not present — stop searching.
+                break;
             }
+            dir = dir.Parent;
         }
+
         Console.WriteLine($"[GetEnv] Could not find '{name}'");
         return null;
     }
@@ -323,6 +332,7 @@ public class AzureBlobCandlesRepositoryIntegrationTests : IAsyncLifetime
         await _repo.StoreCandlesAsync(symbol, 5, MakeCandles(start, 5, 5));
 
         var files1m = await _repo.GetCandleFilesAsync(symbol, 1);
+        Assert.Single(files1m);
         await _repo.RemoveCandleFileAsync(files1m[0]);
 
         var remaining1m = await _repo.GetCandleFilesAsync(symbol, 1);

@@ -48,7 +48,10 @@ public class MinioFixture : IAsyncLifetime
         // Ensure bucket exists for integration tests
         var bucketName = "minio-test-bucket";
         var minioBuckets = await Client.ListBucketsAsync();
-        if (!minioBuckets.Buckets.Any(b => b.BucketName == bucketName)) await Client.PutBucketAsync(new PutBucketRequest { BucketName = bucketName });
+        if (minioBuckets.Buckets == null || !minioBuckets.Buckets.Any(b => b.BucketName == bucketName)) 
+        {
+            await Client.PutBucketAsync(new PutBucketRequest { BucketName = bucketName });
+        }
     }
 
     public async Task DisposeAsync()
@@ -345,6 +348,58 @@ public class S3CandlesRepositoryIntegrationTests
         Assert.Equal(100.1 + (expectedI % 1000) * 0.01, sample.Close, precision: 10);
         Assert.Equal(expectedI * 10.0, sample.Volume, precision: 5);
         Assert.Equal(expectedI % 500, sample.TradeCount);
+
+        await CleanUpAfterTest(bucket);
+    }
+
+    [Fact]
+    public async Task SymbolWithSlash_StoreAndFetch_WorksCorrectly()
+    {
+        var bucket = "test-bucket-slash-symbol";
+        await EnsureBucketAsync(bucket);
+        var repo = new Candles.S3CandlesRepository(bucket, prefix: null, client: _fixture.Client);
+        const string symbol = "BTC/USD";
+        const int interval = 60;
+        var start = new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        var candles = Enumerable.Range(0, 5).Select(i => new Candles.Candle
+        {
+            Timestamp = start.AddMinutes(i * interval),
+            Open = 60000 + i,
+            High = 60100 + i,
+            Low = 59900 + i,
+            Close = 60050 + i,
+            Volume = 1000 + i,
+            TradeCount = 10 + i
+        }).ToList();
+
+        await repo.StoreCandlesAsync(symbol, interval, candles);
+
+        // Verify the S3 key is percent-encoded (no raw slash from symbol in the key)
+        if (_fixture.Client != null)
+        {
+            var objects = await _fixture.Client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = bucket });
+            var keys = objects.S3Objects?.Select(o => o.Key).ToList() ?? [];
+            Assert.All(keys, k => Assert.DoesNotContain("BTC/USD", k));
+            Assert.Contains(keys, k => k.Contains("BTC%2FUSD"));
+        }
+
+        // Fetch returns correct candles
+        var fetched = new List<Candles.Candle>();
+        await foreach (var c in repo.FetchCandlesAsync(symbol, interval, start, candles.Last().Timestamp))
+            fetched.Add(c);
+        Assert.Equal(candles.Count, fetched.Count);
+        for (int i = 0; i < candles.Count; i++)
+        {
+            Assert.Equal(candles[i].Timestamp, fetched[i].Timestamp);
+            Assert.Equal(candles[i].Open, fetched[i].Open);
+        }
+
+        // GetCandleFilesAsync and remove via returned CandleFileInfo
+        var files = await repo.GetCandleFilesAsync(symbol, interval);
+        Assert.NotEmpty(files);
+        await repo.RemoveCandleFileAsync(files[0]);
+        var filesAfter = await repo.GetCandleFilesAsync(symbol, interval);
+        Assert.Empty(filesAfter);
 
         await CleanUpAfterTest(bucket);
     }

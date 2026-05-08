@@ -210,7 +210,7 @@ namespace S3CandlesDemo.Candles
             await _container.GetBlobClient(blobName).DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
             foreach (var kvp in _fileIndex)
-                kvp.Value.RemoveAll(f => f.Path == fileInfo.Path);
+                kvp.Value.RemoveAll(f => f.ToPublic().Path == fileInfo.Path);
         }
 
         // ------------------------------------------------------------------

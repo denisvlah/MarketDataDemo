@@ -154,4 +154,57 @@ public class FileSystemCandlesRepositoryTests
             try { Directory.Delete(baseDir, true); } catch { }
         }
     }
+
+    [Fact]
+    public async Task SymbolWithSlash_StoreAndFetch_WorksCorrectly()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "fsrepo_slash_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(baseDir);
+        try
+        {
+            var repo = new FileSystemCandlesRepository(baseDir);
+            const string symbol = "BTC/USD";
+            const int interval = 60;
+            var start = new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+            var candles = Enumerable.Range(0, 5).Select(i => new Candle
+            {
+                Timestamp = start.AddMinutes(i * interval),
+                Open = 60000 + i,
+                High = 60100 + i,
+                Low = 59900 + i,
+                Close = 60050 + i,
+                Volume = 1000 + i,
+                TradeCount = 10 + i
+            }).ToList();
+
+            await repo.StoreCandlesAsync(symbol, interval, candles);
+
+            // No physical file on disk should contain a raw '/'
+            var diskFiles = Directory.GetFiles(baseDir);
+            Assert.All(diskFiles, f => Assert.DoesNotContain("/", Path.GetFileName(f)));
+            // The encoded form must appear
+            Assert.Contains(diskFiles, f => Path.GetFileName(f).Contains("BTC%2FUSD"));
+
+            // Fetch returns correct candles with original symbol
+            var fetched = new List<Candle>();
+            await foreach (var c in repo.FetchCandlesAsync(symbol, interval, start, candles.Last().Timestamp))
+                fetched.Add(c);
+            Assert.Equal(candles.Count, fetched.Count);
+            for (int i = 0; i < candles.Count; i++)
+                Assert.Equal(candles[i].Timestamp, fetched[i].Timestamp);
+
+            // GetCandleFilesAsync returns decoded path (no %2F in path is not required, but symbol in index is decoded)
+            var files = await repo.GetCandleFilesAsync(symbol, interval);
+            Assert.NotEmpty(files);
+            // The path exposed to callers should NOT contain the raw slash from encoded form in a way
+            // that would confuse the OS; verify we can remove via the returned file info
+            await repo.RemoveCandleFileAsync(files[0]);
+            var filesAfter = await repo.GetCandleFilesAsync(symbol, interval);
+            Assert.Empty(filesAfter);
+        }
+        finally
+        {
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
 }
