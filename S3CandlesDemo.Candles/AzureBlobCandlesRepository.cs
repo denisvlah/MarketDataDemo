@@ -194,7 +194,6 @@ namespace S3CandlesDemo.Candles
         // ------------------------------------------------------------------
         // Override: delete helpers
         // ------------------------------------------------------------------
-
         public override async Task RemoveCandleFilesAsync(string symbol, int intervalMinutes, CancellationToken cancellationToken = default)
         {
             var files = await GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken);
