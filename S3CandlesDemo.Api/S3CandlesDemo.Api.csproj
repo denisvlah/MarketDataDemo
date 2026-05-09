@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PublishAot>true</PublishAot>
+    <UserSecretsId>s3candlesdemo-api-local-dev</UserSecretsId>
     <InvariantGlobalization>true</InvariantGlobalization>
     <PublishTrimmed>true</PublishTrimmed>
     <StripSymbolsDuringAotCompilation>true</StripSymbolsDuringAotCompilation>

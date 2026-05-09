@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
 using Amazon.S3;
+using Azure.Storage.Blobs;
 using S3CandlesDemo.Candles;
 using Scalar.AspNetCore;
 
@@ -11,49 +12,78 @@ builder.Services.AddOpenApi();
 builder.Services.AddSingleton<ICandlesRepository>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<Program>>();
+    var config = sp.GetRequiredService<IConfiguration>();
+    var storageType = config.GetValue<string>("StorageType") ?? "S3";
+
     try
     {
-        logger.LogInformation("Initializing S3CandlesRepository...");
-        var s3Config = sp.GetRequiredService<IConfiguration>().GetSection("S3Candles");
-        var bucket = s3Config.GetValue<string>("Bucket");
-        var prefix = s3Config.GetValue<string>("Prefix");
-        var awsConfig = s3Config.GetSection("AWS");
-        var accessKey = awsConfig.GetValue<string>("AccessKey");
-        var secretKey = awsConfig.GetValue<string>("SecretKey");
-        var region = awsConfig.GetValue<string>("Region");
-        var url = awsConfig.GetValue<string>("Url");
-
-        if (string.IsNullOrEmpty(bucket) || string.IsNullOrEmpty(accessKey) ||
-            string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(region))
+        return storageType.ToLowerInvariant() switch
         {
-            logger.LogCritical("S3 configuration is incomplete. Bucket, AccessKey, SecretKey, and Region are required.");
-            Thread.Sleep(1000); // Ensure log is flushed before exit
-            Environment.Exit(1);
-        }
-
-        AmazonS3Client s3Client;
-        if (!string.IsNullOrWhiteSpace(url))
-            s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
-            {
-                ServiceURL = url,
-                ForcePathStyle = true,
-                UseHttp = true
-            });
-        else
-            s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
-
-        var r=  new S3CandlesRepository(bucket, prefix, s3Client);
-        logger.LogInformation("S3CandlesRepository initialized successfully.");
-        return r;
+            "azure" => CreateAzureBlobRepository(config, logger),
+            _ => CreateS3Repository(config, logger)
+        };
     }
     catch (Exception ex)
     {
-        logger.LogCritical(ex, "Failed to initialize S3CandlesRepository. S3 connection is not available.");
+        logger.LogCritical(ex, "Failed to initialize {StorageType} repository.", storageType);
         Thread.Sleep(1000); // Ensure log is flushed before exit
         Environment.Exit(1);
         throw; // Never reached, but satisfies compiler
     }
 });
+
+static ICandlesRepository CreateS3Repository(IConfiguration config, ILogger logger)
+{
+    logger.LogInformation("Initializing S3CandlesRepository...");
+    var s3Config = config.GetSection("S3Candles");
+    var bucket = s3Config.GetValue<string>("Bucket");
+    var prefix = s3Config.GetValue<string>("Prefix");
+    var awsConfig = s3Config.GetSection("AWS");
+    var accessKey = awsConfig.GetValue<string>("AccessKey");
+    var secretKey = awsConfig.GetValue<string>("SecretKey");
+    var region = awsConfig.GetValue<string>("Region");
+    var url = awsConfig.GetValue<string>("Url");
+
+    if (string.IsNullOrEmpty(bucket) || string.IsNullOrEmpty(accessKey) ||
+        string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(region))
+    {
+        throw new InvalidOperationException("S3 configuration is incomplete. Bucket, AccessKey, SecretKey, and Region are required.");
+    }
+
+    AmazonS3Client s3Client;
+    if (!string.IsNullOrWhiteSpace(url))
+        s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
+        {
+            ServiceURL = url,
+            ForcePathStyle = true,
+            UseHttp = true
+        });
+    else
+        s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
+
+    var repo = new S3CandlesRepository(bucket, prefix, s3Client);
+    logger.LogInformation("S3CandlesRepository initialized successfully.");
+    return repo;
+}
+
+static ICandlesRepository CreateAzureBlobRepository(IConfiguration config, ILogger logger)
+{
+    logger.LogInformation("Initializing AzureBlobCandlesRepository...");
+    var azureConfig = config.GetSection("AzureBlob");
+    var connectionString = azureConfig.GetValue<string>("ConnectionString");
+    var container = azureConfig.GetValue<string>("Container");
+    var prefix = azureConfig.GetValue<string>("Prefix");
+
+    if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(container))
+    {
+        throw new InvalidOperationException("Azure Blob configuration is incomplete. ConnectionString and Container are required.");
+    }
+
+    var containerClient = new BlobContainerClient(connectionString, container);
+    var repo = new AzureBlobCandlesRepository(containerClient, prefix);
+    logger.LogInformation("AzureBlobCandlesRepository initialized successfully.");
+    return repo;
+}
 
 // Poll S3 every minute to refresh the in-memory file index.
 // This avoids rebuilding the index on every API request while still catching externally added files.
