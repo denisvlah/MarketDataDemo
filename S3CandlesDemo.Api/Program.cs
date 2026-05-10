@@ -211,6 +211,8 @@ static class JsonStreamBytes
 }
 
 [JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(DateTime))]
+[JsonSerializable(typeof(DateTime?))]
 [JsonSerializable(typeof(Candle))]
 [JsonSerializable(typeof(List<Candle>))]
 [JsonSerializable(typeof(IReadOnlyList<CandleFileInfo>))]
@@ -244,7 +246,7 @@ public class FileIndexPollingService(ICandlesRepository repo, ILogger<FileIndexP
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to build file index on startup. Will retry in {Interval}.", Interval);
+            logger.LogError(ex, "Failed to build file index on startup. Will retry in {Interval}. {m}", Interval, ex.Message);
         }
         await base.StartAsync(cancellationToken);
     }

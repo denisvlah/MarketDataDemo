@@ -80,6 +80,9 @@ docker compose restart kraken-collector
 
 # MinIO console
 open http://localhost:9001  # minioadmin / minioadmin
+
+# API Reference (Scalar/Swagger)
+open http://localhost:5044/scalar
 ```
 
 **Unified Single-Bucket Layout:**
@@ -137,6 +140,9 @@ bash startMinio.sh
 
 # Run API (uses appsettings.Development.json → localhost:7000)
 dotnet run --project S3CandlesDemo.Api
+
+# API Reference (Scalar/Swagger)
+open http://localhost:5044/scalar
 
 # Run collector
 dotnet run --project S3CandlesDemo.KrakenLatestCollector

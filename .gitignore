@@ -11,6 +11,7 @@ csv/
 .idea/
 .vscode/
 *.DotSettings.user
+candles/
 
 # Environment variable files (contain secrets)
 .env
