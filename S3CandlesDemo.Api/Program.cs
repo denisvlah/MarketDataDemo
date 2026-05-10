@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
 using Amazon.S3;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using S3CandlesDemo.Candles;
 using Scalar.AspNetCore;
@@ -73,16 +74,35 @@ static ICandlesRepository CreateAzureBlobRepository(IConfiguration config, ILogg
     var connectionString = azureConfig.GetValue<string>("ConnectionString");
     var container = azureConfig.GetValue<string>("Container");
     var prefix = azureConfig.GetValue<string>("Prefix");
+    var storageAccountName = azureConfig.GetValue<string>("StorageAccountName");
 
-    if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(container))
+    // Use managed identity if connection string is not provided
+    if (string.IsNullOrEmpty(connectionString))
     {
-        throw new InvalidOperationException("Azure Blob configuration is incomplete. ConnectionString and Container are required.");
+        if (string.IsNullOrEmpty(storageAccountName) || string.IsNullOrEmpty(container))
+        {
+            throw new InvalidOperationException("Azure Blob configuration is incomplete. Either ConnectionString or StorageAccountName and Container are required.");
+        }
+
+        logger.LogInformation("Using Azure Managed Identity for authentication.");
+        var credential = new DefaultAzureCredential();
+        var serviceClient = new BlobServiceClient(
+            new Uri($"https://{storageAccountName}.blob.core.windows.net"),
+            credential);
+        logger.LogInformation("AzureBlobCandlesRepository initialized with managed identity successfully.");
+        return new AzureBlobCandlesRepository(serviceClient, container, prefix);
     }
 
+    // Use connection string (backward compatible)
+    if (string.IsNullOrEmpty(container))
+    {
+        throw new InvalidOperationException("Azure Blob configuration is incomplete. Container is required.");
+    }
+
+    logger.LogInformation("Using Azure connection string for authentication.");
     var containerClient = new BlobContainerClient(connectionString, container);
-    var repo = new AzureBlobCandlesRepository(containerClient, prefix);
     logger.LogInformation("AzureBlobCandlesRepository initialized successfully.");
-    return repo;
+    return new AzureBlobCandlesRepository(containerClient, prefix);
 }
 
 // Poll S3 every minute to refresh the in-memory file index.

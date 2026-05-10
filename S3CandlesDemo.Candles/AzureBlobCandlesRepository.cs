@@ -43,6 +43,12 @@ namespace S3CandlesDemo.Candles
         public AzureBlobCandlesRepository(string connectionString, string containerName, string? prefix = null)
             : this(new BlobContainerClient(connectionString, containerName), prefix) { }
 
+        /// <param name="serviceClient">Pre-built <see cref="BlobServiceClient"/> authenticated with managed identity or other credentials.</param>
+        /// <param name="containerName">Blob container name.</param>
+        /// <param name="prefix">Optional blob name prefix (e.g. "candles"). No leading/trailing slashes needed.</param>
+        public AzureBlobCandlesRepository(BlobServiceClient serviceClient, string containerName, string? prefix = null)
+            : this(serviceClient.GetBlobContainerClient(containerName), prefix) { }
+
         /// <param name="container">Pre-built <see cref="BlobContainerClient"/> (useful for testing with Azurite or a fake).</param>
         /// <param name="prefix">Optional blob name prefix.</param>
         public AzureBlobCandlesRepository(BlobContainerClient container, string? prefix = null)
