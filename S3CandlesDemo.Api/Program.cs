@@ -148,7 +148,7 @@ app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, in
 // Note: Minimal API does not natively support IAsyncEnumerable from body, so this is omitted for now.
 
 // Fetch candles by symbol, time period, and interval
-app.MapGet("/candles/{symbol}/{intervalMinutes}", async (string symbol, int intervalMinutes, DateTime? from, DateTime? to, ICandlesRepository repo, ILogger<Program> logger, CancellationToken ct) =>
+app.MapGet("/candles/{intervalMinutes}", async (int intervalMinutes,string symbol, DateTime? from, DateTime? to, ICandlesRepository repo, ILogger<Program> logger, CancellationToken ct) =>
     {
         if (from is null || to is null)
             return Results.BadRequest("Query parameters 'from' and 'to' are required (e.g. ?from=2024-02-01&to=2024-02-12).");

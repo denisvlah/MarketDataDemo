@@ -85,6 +85,27 @@ log() {
     esac
 }
 
+# Convenience wrapper functions
+log_info() {
+    log $LOG_INFO "$1"
+}
+
+log_success() {
+    log $LOG_SUCCESS "$1"
+}
+
+log_warning() {
+    log $LOG_WARNING "$1"
+}
+
+log_error() {
+    log $LOG_ERROR "$1"
+}
+
+log_debug() {
+    log $LOG_DEBUG "$1"
+}
+
 log_section() {
     echo ""
     echo -e "${BOLD}${CYAN}==============================================================================${NC}"
@@ -498,7 +519,7 @@ verify_deployment() {
     echo "  curl 'https://$endpoint/candles/symbols'"
     echo ""
     echo "  # Test specific candle data"
-    echo "  curl 'https://$endpoint/candles/BTCUSD/1?from=2024-01-01&to=2024-01-07'"
+    echo "  curl 'https://$endpoint/candles/1?symbol=BTC%2FUSD&from=2024-01-01&to=2024-01-07'"
     echo ""
 }
 

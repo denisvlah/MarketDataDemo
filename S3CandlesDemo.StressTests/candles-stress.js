@@ -32,8 +32,8 @@ export const options = {
 // ── Virtual user scenario ──────────────────────────────────────────────
 export default function () {
   const url =
-    `${BASE_URL}/candles/${encodeURIComponent(SYMBOL)}/${INTERVAL}` +
-    `?from=${FROM}&to=${TO}`;
+    `${BASE_URL}/candles/${INTERVAL}` +
+    `?symbol=${encodeURIComponent(SYMBOL)}&from=${FROM}&to=${TO}`;
 
   const res = http.get(url, {
     headers: { Accept: 'application/json' },

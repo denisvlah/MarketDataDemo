@@ -113,7 +113,7 @@ az containerapp env create --name marketdata-env --resource-group marketdata-rg 
 az identity create --name marketdata-identity --resource-group marketdata-rg
 
 # Get the storage account resource ID
-STORAGE_ID=$(az storage account show --name candlesdata --resource-group <storage-rg-name> --query id -o tsv)
+STORAGE_ID=$(az storage account show --name candlesdata --resource-group candles --query id -o tsv)
 
 # Get the managed identity principal ID
 IDENTITY_PRINCIPAL=$(az identity show --name marketdata-identity --resource-group marketdata-rg --query principalId -o tsv)
@@ -130,10 +130,10 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL --scope $STORAGE_ID --r
 az acr login --name marketdataacr
 
 # Build the image
-docker build -f Dockerfile.api -t marketdataacr.azurecr.io/marketdata-api:latest .
+docker build -f Dockerfile.api -t marketdataacr.azurecr.io/marketdata-api:latest2 .
 
 # Push to ACR
-docker push marketdataacr.azurecr.io/marketdata-api:latest
+docker push marketdataacr.azurecr.io/marketdata-api:latest2
 ```
 
 ### Phase 4: Container App Deployment
@@ -155,9 +155,8 @@ az containerapp create \
   --max-replicas 1 \
   --registry-server marketdataacr.azurecr.io \
   --assign-identity marketdata-identity \
-  --identity-client-id $IDENTITY_CLIENT_ID \
-  --env-vars StorageType=azure AZURE__BLOB__Container=candles-data AZURE__BLOB__Prefix=candles AZURE__BLOB__StorageAccountName=candlesdata \
-  --cors-allowed-origins "https://<your-static-web-app>.azurestaticapps.net" \
+  --identity-client-id $IDENTITY_CLIENT_ID \  
+  --cors-allowed-origins "https://market-data-dv.azurestaticapps.net" \
   --cors-allowed-methods "GET,POST,PUT,DELETE,OPTIONS" \
   --cors-allowed-headers "*" \
   --cors-expose-headers "*" \
@@ -193,17 +192,9 @@ az containerapp show --name marketdata-api --resource-group marketdata-rg --quer
 # Get the endpoint
 ENDPOINT=$(az containerapp show --name marketdata-api --resource-group marketdata-rg --query properties.configuration.ingress.fqdn -o tsv)
 
-# Test candles endpoint
-curl "https://$ENDPOINT/candles/BTCUSD/1?from=2024-01-01&to=2024-01-07"
-
 # Test symbols endpoint
 curl "https://$ENDPOINT/candles/symbols"
 
-# Test CORS preflight
-curl -X OPTIONS "https://$ENDPOINT/candles/BTCUSD/1" \
-  -H "Origin: https://<your-static-web-app>.azurestaticapps.net" \
-  -H "Access-Control-Request-Method: GET" \
-  -v
 ```
 
 ## Autoscaling Configuration Details

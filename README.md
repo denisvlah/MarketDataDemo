@@ -98,7 +98,7 @@ All scheduled jobs (Kraken collector, CSV loader, historical importer) read symb
 
 ## Stress Testing (k6)
 
-The `S3CandlesDemo.StressTests/` folder contains a [k6](https://k6.io/) load test targeting the `GET /candles/{symbol}/{intervalMinutes}` endpoint.
+The `S3CandlesDemo.StressTests/` folder contains a [k6](https://k6.io/) load test targeting the `GET /candles/{intervalMinutes}` endpoint.
 
 The test ramps virtual users (VUs) in stages (5 → 20 → 50 → 0) and reports average response time, 95th-percentile latency, and failed request rate.
 

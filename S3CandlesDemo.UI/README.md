@@ -10,7 +10,7 @@ A frontend SPA to display OHLCV candlestick charts for data stored in the S3Cand
 ## 2. Data Source & API Integration
 2.1) The UI connects to the ASP.NET API (default `http://localhost:5044`). The base URL should be configurable via an environment variable (`VITE_API_BASE_URL`).
 2.2) On startup, call `GET /candles/files` to discover all available **symbols** and **intervals** and populate the dropdowns dynamically — no hardcoded symbol lists.
-2.3) Fetch candle data via `GET /candles/{symbol}/{intervalMinutes}?from={iso}&to={iso}`. The response is a JSON array of `{ t, o, h, l, c, v, n }`.
+2.3) Fetch candle data via `GET /candles/{intervalMinutes}?symbol={symbol}&from={iso}&to={iso}`. The response is a JSON array of `{ t, o, h, l, c, v, n }`.
 
 ## 3. User Controls (toolbar / header bar)
 3.1) **Symbol selector** — searchable dropdown (Mantine `Select` with `searchable`), populated from the `/candles/files` response (distinct symbols).
