@@ -129,12 +129,17 @@ az role assignment create --assignee $IDENTITY_PRINCIPAL --scope $STORAGE_ID --r
 # Login to ACR
 az acr login --name marketdataacr
 
+# Generate a unique tag (timestamp + git commit)
+TAG=$(git rev-parse --short HEAD)-$(date +%s)
+
 # Build the image
-docker build -f Dockerfile.api -t marketdataacr.azurecr.io/marketdata-api:latest2 .
+docker build -f Dockerfile.api -t marketdataacr.azurecr.io/marketdata-api:$TAG .
 
 # Push to ACR
-docker push marketdataacr.azurecr.io/marketdata-api:latest2
+docker push marketdataacr.azurecr.io/marketdata-api:$TAG
 ```
+
+**Note:** The GitHub workflow automatically uses this tagging strategy (`git-sha-timestamp`) for each deployment, ensuring each revision gets a unique image tag.
 
 ### Phase 4: Container App Deployment
 
@@ -144,10 +149,11 @@ docker push marketdataacr.azurecr.io/marketdata-api:latest2
 IDENTITY_CLIENT_ID=$(az identity show --name marketdata-identity --resource-group marketdata-rg --query clientId -o tsv)
 
 # Deploy Container App with autoscaling, managed identity, and CORS
+# Use the TAG variable from step 3.1 or let the GitHub workflow deploy with the new tag
 az containerapp create \
   --name marketdata-api \
   --resource-group marketdata-rg \
-  --image marketdataacr.azurecr.io/marketdata-api:latest \
+  --image marketdataacr.azurecr.io/marketdata-api:${TAG} \
   --environment marketdata-env \
   --ingress external \
   --target-port 8080 \
@@ -161,6 +167,11 @@ az containerapp create \
   --cors-allowed-headers "*" \
   --cors-expose-headers "*" \
   --cors-allow-credentials true
+```
+
+**Note:** For subsequent deployments, the GitHub workflow will automatically push the new image and the Container App will pull the latest tag. If you need to update to a specific tag manually:
+```bash
+az containerapp update --name marketdata-api --resource-group marketdata-rg --image marketdataacr.azurecr.io/marketdata-api:${TAG}
 ```
 
 #### 4.2 Configure Autoscaling Rules
