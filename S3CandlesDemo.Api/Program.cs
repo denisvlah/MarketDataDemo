@@ -102,6 +102,8 @@ static ICandlesRepository CreateAzureBlobRepository(IConfiguration config, ILogg
         var container = azureConfig.GetValue<string>("Container");
         var prefix = azureConfig.GetValue<string>("Prefix");
         var storageAccountName = azureConfig.GetValue<string>("StorageAccountName");
+        logger.LogInformation("~~~~~[Azure] Connection string: {ConnectionString}", connectionString);
+        //Console.WriteLine($"~~~~~~~[Azure] Connection string: {connectionString}");
 
         // Use managed identity if connection string is not provided or is a placeholder
         if (string.IsNullOrEmpty(connectionString) || connectionString.Equals("USE_USER_SECRETS", StringComparison.OrdinalIgnoreCase))
@@ -183,6 +185,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+app.Logger.LogInformation("My app version 1.0");
 
 //app.UseHttpsRedirection();
 
