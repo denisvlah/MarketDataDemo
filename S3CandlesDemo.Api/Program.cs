@@ -186,7 +186,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.Logger.LogInformation("My app version 1.0");
+app.Logger.LogInformation("My app version 1.1");
 
 //app.UseHttpsRedirection();
 

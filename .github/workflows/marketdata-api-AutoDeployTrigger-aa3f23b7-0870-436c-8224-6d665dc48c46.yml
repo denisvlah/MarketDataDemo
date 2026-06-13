@@ -61,23 +61,11 @@ jobs:
           docker push marketdataacr.azurecr.io/marketdata-api:latest
 
       - name: Update Container App with new image
-        run: |
-          echo "Deploying image: marketdataacr.azurecr.io/marketdata-api:${{ steps.image-tag.outputs.tag }}"
-          CONTAINER_NAME=$(az containerapp show \
-            --name marketdata-api \
-            --resource-group marketdata-rg \
-            --query "properties.template.containers[0].name" \
-            -o tsv)
-
-          if [ -z "$CONTAINER_NAME" ]; then
-            CONTAINER_NAME="marketdata-api"
-          fi
-
-          echo "Using container name: ${CONTAINER_NAME}"
+        run: |          
           az containerapp update \
             --name marketdata-api \
             --resource-group marketdata-rg \
-            --container-name "${CONTAINER_NAME}" \
+            --container-name marketdata-api \
             --image marketdataacr.azurecr.io/marketdata-api:${{ steps.image-tag.outputs.tag }}
           echo "Container App updated successfully with image tag: ${{ steps.image-tag.outputs.tag }}"
 
