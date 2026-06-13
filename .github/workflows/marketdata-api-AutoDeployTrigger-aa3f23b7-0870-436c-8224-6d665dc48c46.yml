@@ -45,6 +45,7 @@ jobs:
           containerAppName: marketdata-api
           resourceGroup: marketdata-rg
           imageToBuild: marketdataacr.azurecr.io/marketdata-api:${{ github.sha }}
+          targetPort: 8080
           _buildArgumentsKey_: |
             _buildArgumentsValues_
 
