@@ -135,15 +135,6 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-//app.UseHttpsRedirection();
-
-// Store candles (bulk)
-app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, int intervalMinutes, List<Candle> candles, ICandlesRepository repo, CancellationToken cancellationToken) =>
-{
-    await repo.StoreCandlesAsync(symbol, intervalMinutes, candles, cancellationToken);
-    return Results.Ok();
-});
-
 // Store candles (async stream, for advanced clients)
 // Note: Minimal API does not natively support IAsyncEnumerable from body, so this is omitted for now.
 
@@ -190,6 +181,22 @@ app.MapGet("/candles/{intervalMinutes}", async (int intervalMinutes,string symbo
 app.MapGet("/candles/{symbol}/{intervalMinutes}/files", async (string symbol, int intervalMinutes, ICandlesRepository repo, CancellationToken cancellationToken) =>
     await repo.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken));
 
+// List all files in the repository with size and candle count
+app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
+    await repo.GetAllCandleFilesAsync(cancellationToken));
+
+// List available symbols with their intervals
+app.MapGet("/candles/symbols", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
+{
+    var files = await repo.GetAllCandleFilesAsync(cancellationToken);
+    return files
+        .GroupBy(f => f.Symbol)
+        .Select(g => new SymbolIntervals(g.Key, g.Select(f => f.IntervalMinutes).Distinct().OrderBy(i => i).ToArray()))
+        .OrderBy(s => s.Symbol)
+        .ToList();
+});
+
+#if DEBUG
 // Remove all files for a symbol/interval
 app.MapDelete("/candles/{symbol}/{intervalMinutes}/files", async (string symbol, int intervalMinutes, ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
@@ -204,20 +211,13 @@ app.MapDelete("/candles/file", async ([Microsoft.AspNetCore.Mvc.FromBody] Candle
     return Results.Ok();
 });
 
-// List available symbols with their intervals
-app.MapGet("/candles/symbols", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
+// Store candles (bulk)
+app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, int intervalMinutes, List<Candle> candles, ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
-    var files = await repo.GetAllCandleFilesAsync(cancellationToken);
-    return files
-        .GroupBy(f => f.Symbol)
-        .Select(g => new SymbolIntervals(g.Key, g.Select(f => f.IntervalMinutes).Distinct().OrderBy(i => i).ToArray()))
-        .OrderBy(s => s.Symbol)
-        .ToList();
+    await repo.StoreCandlesAsync(symbol, intervalMinutes, candles, cancellationToken);
+    return Results.Ok();
 });
-
-// List all files in the repository with size and candle count
-app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
-    await repo.GetAllCandleFilesAsync(cancellationToken));
+#endif
 
 app.Run();
 
