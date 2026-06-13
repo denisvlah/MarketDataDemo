@@ -186,6 +186,7 @@ if (app.Environment.IsDevelopment())
 
 //app.UseHttpsRedirection();
 
+#if DEBUG
 // Store candles (bulk)
 app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, int intervalMinutes, List<Candle> candles, ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
@@ -195,6 +196,7 @@ app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, in
 
 // Store candles (async stream, for advanced clients)
 // Note: Minimal API does not natively support IAsyncEnumerable from body, so this is omitted for now.
+#endif
 
 // Fetch candles by symbol, time period, and interval
 app.MapGet("/candles/{intervalMinutes}", async (int intervalMinutes,string symbol, DateTime? from, DateTime? to, ICandlesRepository repo, ILogger<Program> logger, CancellationToken ct) =>
@@ -239,6 +241,7 @@ app.MapGet("/candles/{intervalMinutes}", async (int intervalMinutes,string symbo
 app.MapGet("/candles/{symbol}/{intervalMinutes}/files", async (string symbol, int intervalMinutes, ICandlesRepository repo, CancellationToken cancellationToken) =>
     await repo.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken));
 
+#if DEBUG
 // Remove all files for a symbol/interval
 app.MapDelete("/candles/{symbol}/{intervalMinutes}/files", async (string symbol, int intervalMinutes, ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
@@ -252,6 +255,7 @@ app.MapDelete("/candles/file", async ([Microsoft.AspNetCore.Mvc.FromBody] Candle
     await repo.RemoveCandleFileAsync(fileInfo, cancellationToken);
     return Results.Ok();
 });
+#endif
 
 // List available symbols with their intervals
 app.MapGet("/candles/symbols", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
