@@ -10,6 +10,15 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 
+// Configure logging for Azure: JSON format, single-line, always include exceptions
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.UseUtcTimestamp = true;
+    options.JsonWriterOptions = new System.Text.Json.JsonWriterOptions { Indented = false };
+});
+
 builder.Services.AddSingleton<ICandlesRepository>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<Program>>();
@@ -26,7 +35,7 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
     }
     catch (Exception ex)
     {
-        logger.LogCritical(ex, "Failed to initialize {StorageType} repository.", storageType);
+        logger.LogCritical(ex, "[App] Startup failed | storage={StorageType} error={Message}", storageType, ex.Message);
         Thread.Sleep(1000); // Ensure log is flushed before exit
         Environment.Exit(1);
         throw; // Never reached, but satisfies compiler
@@ -35,74 +44,114 @@ builder.Services.AddSingleton<ICandlesRepository>(sp =>
 
 static ICandlesRepository CreateS3Repository(IConfiguration config, ILogger logger)
 {
-    logger.LogInformation("Initializing S3CandlesRepository...");
-    var s3Config = config.GetSection("S3Candles");
-    var bucket = s3Config.GetValue<string>("Bucket");
-    var prefix = s3Config.GetValue<string>("Prefix");
-    var awsConfig = s3Config.GetSection("AWS");
-    var accessKey = awsConfig.GetValue<string>("AccessKey");
-    var secretKey = awsConfig.GetValue<string>("SecretKey");
-    var region = awsConfig.GetValue<string>("Region");
-    var url = awsConfig.GetValue<string>("Url");
-
-    if (string.IsNullOrEmpty(bucket) || string.IsNullOrEmpty(accessKey) ||
-        string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(region))
+    try
     {
-        throw new InvalidOperationException("S3 configuration is incomplete. Bucket, AccessKey, SecretKey, and Region are required.");
-    }
+        logger.LogInformation("[S3] Initializing repository | bucket={Bucket} prefix={Prefix}", 
+            config.GetSection("S3Candles").GetValue<string>("Bucket"),
+            config.GetSection("S3Candles").GetValue<string>("Prefix"));
+        
+        var s3Config = config.GetSection("S3Candles");
+        var bucket = s3Config.GetValue<string>("Bucket");
+        var prefix = s3Config.GetValue<string>("Prefix");
+        var awsConfig = s3Config.GetSection("AWS");
+        var accessKey = awsConfig.GetValue<string>("AccessKey");
+        var secretKey = awsConfig.GetValue<string>("SecretKey");
+        var region = awsConfig.GetValue<string>("Region");
+        var url = awsConfig.GetValue<string>("Url");
 
-    AmazonS3Client s3Client;
-    if (!string.IsNullOrWhiteSpace(url))
-        s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
+        if (string.IsNullOrEmpty(bucket) || string.IsNullOrEmpty(accessKey) ||
+            string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(region))
         {
-            ServiceURL = url,
-            ForcePathStyle = true,
-            UseHttp = true
-        });
-    else
-        s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
+            throw new InvalidOperationException($"S3 config incomplete: bucket={bucket}, region={region}, keys present={!string.IsNullOrEmpty(accessKey)}");
+        }
 
-    var repo = new S3CandlesRepository(bucket, prefix, s3Client);
-    logger.LogInformation("S3CandlesRepository initialized successfully.");
-    return repo;
+        AmazonS3Client s3Client;
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            logger.LogInformation("[S3] Using custom endpoint | url={Url}", url);
+            s3Client = new AmazonS3Client(accessKey, secretKey, new AmazonS3Config
+            {
+                ServiceURL = url,
+                ForcePathStyle = true,
+                UseHttp = true
+            });
+        }
+        else
+        {
+            logger.LogInformation("[S3] Using AWS endpoint | region={Region}", region);
+            s3Client = new AmazonS3Client(accessKey, secretKey, Amazon.RegionEndpoint.GetBySystemName(region));
+        }
+
+        var repo = new S3CandlesRepository(bucket, prefix, s3Client);
+        logger.LogInformation("[S3] Repository initialized successfully");
+        return repo;
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[S3] Initialization failed | error={Message}", ex.Message);
+        throw;
+    }
 }
 
 static ICandlesRepository CreateAzureBlobRepository(IConfiguration config, ILogger logger)
 {
-    logger.LogInformation("Initializing AzureBlobCandlesRepository...");
-    var azureConfig = config.GetSection("AzureBlob");
-    var connectionString = azureConfig.GetValue<string>("ConnectionString");
-    var container = azureConfig.GetValue<string>("Container");
-    var prefix = azureConfig.GetValue<string>("Prefix");
-    var storageAccountName = azureConfig.GetValue<string>("StorageAccountName");
-
-    // Use managed identity if connection string is not provided
-    if (string.IsNullOrEmpty(connectionString))
+    try
     {
-        if (string.IsNullOrEmpty(storageAccountName) || string.IsNullOrEmpty(container))
+        var azureConfig = config.GetSection("AzureBlob");
+        var connectionString = azureConfig.GetValue<string>("ConnectionString");
+        var container = azureConfig.GetValue<string>("Container");
+        var prefix = azureConfig.GetValue<string>("Prefix");
+        var storageAccountName = azureConfig.GetValue<string>("StorageAccountName");
+
+        // Use managed identity if connection string is not provided or is a placeholder
+        if (string.IsNullOrEmpty(connectionString) || connectionString.Equals("USE_USER_SECRETS", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Azure Blob configuration is incomplete. Either ConnectionString or StorageAccountName and Container are required.");
+            if (string.IsNullOrEmpty(storageAccountName) || string.IsNullOrEmpty(container))
+            {
+                throw new InvalidOperationException($"Azure config incomplete: account={storageAccountName}, container={container}");
+            }
+
+            logger.LogInformation("[Azure] Initializing with managed identity | account={StorageAccount} container={Container}", storageAccountName, container);
+            try
+            {
+                var credential = new DefaultAzureCredential();
+                var serviceClient = new BlobServiceClient(
+                    new Uri($"https://{storageAccountName}.blob.core.windows.net"),
+                    credential);
+                logger.LogInformation("[Azure] Repository initialized with managed identity");
+                return new AzureBlobCandlesRepository(serviceClient, container, prefix);
+            }
+            catch (Exception authEx)
+            {
+                logger.LogError(authEx, "[Azure] Managed identity authentication failed | account={StorageAccount}", storageAccountName);
+                throw;
+            }
         }
 
-        logger.LogInformation("Using Azure Managed Identity for authentication.");
-        var credential = new DefaultAzureCredential();
-        var serviceClient = new BlobServiceClient(
-            new Uri($"https://{storageAccountName}.blob.core.windows.net"),
-            credential);
-        logger.LogInformation("AzureBlobCandlesRepository initialized with managed identity successfully.");
-        return new AzureBlobCandlesRepository(serviceClient, container, prefix);
-    }
+        // Use connection string (backward compatible)
+        if (string.IsNullOrEmpty(container))
+        {
+            throw new InvalidOperationException("Container name is required for connection string auth");
+        }
 
-    // Use connection string (backward compatible)
-    if (string.IsNullOrEmpty(container))
+        logger.LogInformation("[Azure] Initializing with connection string | container={Container}", container);
+        try
+        {
+            var containerClient = new BlobContainerClient(connectionString, container);
+            logger.LogInformation("[Azure] Repository initialized with connection string");
+            return new AzureBlobCandlesRepository(containerClient, prefix);
+        }
+        catch (Exception connEx)
+        {
+            logger.LogError(connEx, "[Azure] Connection string authentication failed | container={Container}", container);
+            throw;
+        }
+    }
+    catch (Exception ex)
     {
-        throw new InvalidOperationException("Azure Blob configuration is incomplete. Container is required.");
+        logger.LogError(ex, "[Azure] Initialization failed | error={Message}", ex.Message);
+        throw;
     }
-
-    logger.LogInformation("Using Azure connection string for authentication.");
-    var containerClient = new BlobContainerClient(connectionString, container);
-    logger.LogInformation("AzureBlobCandlesRepository initialized successfully.");
-    return new AzureBlobCandlesRepository(containerClient, prefix);
 }
 
 // Poll S3 every minute to refresh the in-memory file index.
@@ -134,6 +183,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+//app.UseHttpsRedirection();
+
+// Store candles (bulk)
+app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, int intervalMinutes, List<Candle> candles, ICandlesRepository repo, CancellationToken cancellationToken) =>
+{
+    await repo.StoreCandlesAsync(symbol, intervalMinutes, candles, cancellationToken);
+    return Results.Ok();
+});
 
 // Store candles (async stream, for advanced clients)
 // Note: Minimal API does not natively support IAsyncEnumerable from body, so this is omitted for now.
@@ -181,22 +239,6 @@ app.MapGet("/candles/{intervalMinutes}", async (int intervalMinutes,string symbo
 app.MapGet("/candles/{symbol}/{intervalMinutes}/files", async (string symbol, int intervalMinutes, ICandlesRepository repo, CancellationToken cancellationToken) =>
     await repo.GetCandleFilesAsync(symbol, intervalMinutes, cancellationToken));
 
-// List all files in the repository with size and candle count
-app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
-    await repo.GetAllCandleFilesAsync(cancellationToken));
-
-// List available symbols with their intervals
-app.MapGet("/candles/symbols", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
-{
-    var files = await repo.GetAllCandleFilesAsync(cancellationToken);
-    return files
-        .GroupBy(f => f.Symbol)
-        .Select(g => new SymbolIntervals(g.Key, g.Select(f => f.IntervalMinutes).Distinct().OrderBy(i => i).ToArray()))
-        .OrderBy(s => s.Symbol)
-        .ToList();
-});
-
-#if DEBUG
 // Remove all files for a symbol/interval
 app.MapDelete("/candles/{symbol}/{intervalMinutes}/files", async (string symbol, int intervalMinutes, ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
@@ -211,13 +253,20 @@ app.MapDelete("/candles/file", async ([Microsoft.AspNetCore.Mvc.FromBody] Candle
     return Results.Ok();
 });
 
-// Store candles (bulk)
-app.MapPost("/candles/{symbol}/{intervalMinutes}/bulk", async (string symbol, int intervalMinutes, List<Candle> candles, ICandlesRepository repo, CancellationToken cancellationToken) =>
+// List available symbols with their intervals
+app.MapGet("/candles/symbols", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
 {
-    await repo.StoreCandlesAsync(symbol, intervalMinutes, candles, cancellationToken);
-    return Results.Ok();
+    var files = await repo.GetAllCandleFilesAsync(cancellationToken);
+    return files
+        .GroupBy(f => f.Symbol)
+        .Select(g => new SymbolIntervals(g.Key, g.Select(f => f.IntervalMinutes).Distinct().OrderBy(i => i).ToArray()))
+        .OrderBy(s => s.Symbol)
+        .ToList();
 });
-#endif
+
+// List all files in the repository with size and candle count
+app.MapGet("/candles/files", async (ICandlesRepository repo, CancellationToken cancellationToken) =>
+    await repo.GetAllCandleFilesAsync(cancellationToken));
 
 app.Run();
 
