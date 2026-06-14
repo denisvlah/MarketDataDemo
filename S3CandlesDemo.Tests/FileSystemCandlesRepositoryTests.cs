@@ -1,9 +1,16 @@
 using S3CandlesDemo.Candles;
+using Xunit.Abstractions;
 
 namespace S3CandlesDemo.Tests;
 
 public class FileSystemCandlesRepositoryTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public FileSystemCandlesRepositoryTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
     [Fact]
     public async Task GetAndRemoveMethods_WorkCorrectly()
     {
@@ -205,6 +212,198 @@ public class FileSystemCandlesRepositoryTests
         finally
         {
             try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task StoreCandlesAsync_SingleGap_InsertsOneFlatCandle()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "fsrepo_flat_single_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(baseDir);
+        try
+        {
+            var repo = new FileSystemCandlesRepository(baseDir);
+            const string symbol = "FLAT";
+            const int interval = 5;
+            var t0 = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            // Two candles with one missing slot between them (t0+5min is skipped)
+            var candles = new List<Candle>
+            {
+                new Candle { Timestamp = t0,                          Open = 100, High = 110, Low = 90,  Close = 105, Volume = 1000, TradeCount = 10 },
+                new Candle { Timestamp = t0.AddMinutes(2 * interval), Open = 200, High = 210, Low = 190, Close = 205, Volume = 2000, TradeCount = 20 },
+            };
+
+            await repo.StoreCandlesAsync(symbol, interval, candles);
+
+            var fetched = new List<Candle>();
+            await foreach (var c in repo.FetchCandlesAsync(symbol, interval, t0, t0.AddMinutes(2 * interval)))
+                fetched.Add(c);
+
+            // original + 1 flat fill + original = 3
+            Assert.Equal(3, fetched.Count);
+
+            var flat = fetched[1];
+            Assert.Equal(t0.AddMinutes(interval), flat.Timestamp);
+            Assert.Equal(105, flat.Open);    // previous candle's Close
+            Assert.Equal(105, flat.High);
+            Assert.Equal(105, flat.Low);
+            Assert.Equal(105, flat.Close);
+            Assert.Equal(0, flat.Volume);
+            Assert.Equal(0, flat.TradeCount);
+        }
+        finally
+        {
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task StoreCandlesAsync_MultipleGap_InsertsMultipleFlatCandles()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "fsrepo_flat_multi_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(baseDir);
+        try
+        {
+            var repo = new FileSystemCandlesRepository(baseDir);
+            const string symbol = "FLATMULTI";
+            const int interval = 1;
+            var t0 = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            // Two candles 4 intervals apart → 3 missing slots
+            var candles = new List<Candle>
+            {
+                new Candle { Timestamp = t0,                          Open = 100, High = 110, Low = 90,  Close = 108, Volume = 500, TradeCount = 5 },
+                new Candle { Timestamp = t0.AddMinutes(4 * interval), Open = 200, High = 220, Low = 180, Close = 210, Volume = 800, TradeCount = 8 },
+            };
+
+            await repo.StoreCandlesAsync(symbol, interval, candles);
+
+            var fetched = new List<Candle>();
+            await foreach (var c in repo.FetchCandlesAsync(symbol, interval, t0, t0.AddMinutes(4 * interval)))
+                fetched.Add(c);
+
+            // original + 3 flat fills + original = 5
+            Assert.Equal(5, fetched.Count);
+
+            for (int i = 1; i <= 3; i++)
+            {
+                var flat = fetched[i];
+                Assert.Equal(t0.AddMinutes(i * interval), flat.Timestamp);
+                Assert.Equal(108, flat.Open);    // previous candle's Close propagated through chain
+                Assert.Equal(108, flat.High);
+                Assert.Equal(108, flat.Low);
+                Assert.Equal(108, flat.Close);
+                Assert.Equal(0, flat.Volume);
+                Assert.Equal(0, flat.TradeCount);
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task StoreCandlesAsync_NoGap_NoFlatCandlesInserted()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "fsrepo_flat_nogap_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(baseDir);
+        try
+        {
+            var repo = new FileSystemCandlesRepository(baseDir);
+            const string symbol = "NOGAP";
+            const int interval = 5;
+            var t0 = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var candles = Enumerable.Range(0, 5).Select(i => new Candle
+            {
+                Timestamp = t0.AddMinutes(i * interval),
+                Open = 100 + i, High = 110 + i, Low = 90 + i, Close = 105 + i,
+                Volume = 1000, TradeCount = 10
+            }).ToList();
+
+            await repo.StoreCandlesAsync(symbol, interval, candles);
+
+            var fetched = new List<Candle>();
+            await foreach (var c in repo.FetchCandlesAsync(symbol, interval, t0, candles.Last().Timestamp))
+                fetched.Add(c);
+
+            Assert.Equal(candles.Count, fetched.Count);
+            for (int i = 0; i < candles.Count; i++)
+                Assert.Equal(candles[i].Timestamp, fetched[i].Timestamp);
+        }
+        finally
+        {
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task StoreCandlesAsync_GapInMiddleOfSequence_InsertsFlatsAtCorrectPosition()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "fsrepo_flat_mid_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(baseDir);
+        try
+        {
+            var repo = new FileSystemCandlesRepository(baseDir);
+            const string symbol = "MIDGAP";
+            const int interval = 10;
+            var t0 = new DateTime(2024, 3, 15, 8, 0, 0, DateTimeKind.Utc);
+
+            // Candles at t0, t0+10, then skip t0+20, resume at t0+30 and t0+40
+            var candles = new List<Candle>
+            {
+                new Candle { Timestamp = t0,                          Open = 1, High = 2, Low = 0.5, Close = 1.5, Volume = 100, TradeCount = 1 },
+                new Candle { Timestamp = t0.AddMinutes(interval),     Open = 2, High = 3, Low = 1.5, Close = 2.5, Volume = 200, TradeCount = 2 },
+                // t0+2*interval is missing
+                new Candle { Timestamp = t0.AddMinutes(3 * interval), Open = 3, High = 4, Low = 2.5, Close = 3.5, Volume = 300, TradeCount = 3 },
+                new Candle { Timestamp = t0.AddMinutes(4 * interval), Open = 4, High = 5, Low = 3.5, Close = 4.5, Volume = 400, TradeCount = 4 },
+            };
+
+            await repo.StoreCandlesAsync(symbol, interval, candles);
+
+            var fetched = new List<Candle>();
+            await foreach (var c in repo.FetchCandlesAsync(symbol, interval, t0, t0.AddMinutes(4 * interval)))
+                fetched.Add(c);
+
+            // 4 original + 1 flat fill = 5
+            Assert.Equal(5, fetched.Count);
+
+            var flat = fetched[2];
+            Assert.Equal(t0.AddMinutes(2 * interval), flat.Timestamp);
+            Assert.Equal(2.5, flat.Open);    // Close of candle at t0+interval
+            Assert.Equal(2.5, flat.High);
+            Assert.Equal(2.5, flat.Low);
+            Assert.Equal(2.5, flat.Close);
+            Assert.Equal(0, flat.Volume);
+            Assert.Equal(0, flat.TradeCount);
+        }
+        finally
+        {
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    //[Fact] this test is one time utility to verify we can read candles from a specific file on disk, not meant for regular test runs
+    public async Task TestSpecificFile()
+    {
+        var candlesPath = "/home/denivlah/Desktop/Projects/s3CandlesDemo/s3CandlesDemo/candles";
+        var repo = new FileSystemCandlesRepository(candlesPath);
+        await repo.RebuildFileIndexAsync();
+        var from = new DateTime(2024, 06, 5, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2024, 06, 30, 0, 0, 0, DateTimeKind.Utc);
+
+        var fetched = new List<Candle>();
+
+        await foreach (var c in repo.FetchCandlesAsync("BTC/USDT", 1, from, to))
+            fetched.Add(c);
+
+
+        Assert.NotEmpty(fetched);
+        foreach (var c in fetched)
+        {
+            _output.WriteLine($"{c.Timestamp:yyyy-MM-dd HH:mm} O:{c.Open} H:{c.High} L:{c.Low} C:{c.Close} V:{c.Volume} T:{c.TradeCount}");
         }
     }
 }

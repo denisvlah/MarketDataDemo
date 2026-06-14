@@ -62,6 +62,17 @@ namespace S3CandlesDemo.Candles
             await StoreCandlesAsync(symbol, intervalMinutes, ToAsyncEnumerable(candles), cancellationToken);
         }
 
+        /// <summary>
+        /// Stores candles for a given symbol and interval. The candles are written to a temporary file first, and then moved to the final location once all candles have been written. The file name includes the symbol, interval, start and end timestamps, and a version number.
+        /// If there are existing files that overlap with the new candles, the version number is incremented to avoid overwriting existing data. The file index is updated to include the new file.
+        /// The symbol is URL-encoded to ensure it is safe for use in file names (e.g., "BTC/USD" becomes "BTC%2FUSD").
+        /// Note that the input stream of candles is considered to be in chronological order and full, if a gap is found it is filled with the flat candle.        /// 
+        /// </summary>
+        /// <param name="symbol"></param>
+        /// <param name="intervalMinutes"></param>
+        /// <param name="candles"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public virtual async Task StoreCandlesAsync(string symbol, int intervalMinutes, IAsyncEnumerable<Candle> candles, CancellationToken cancellationToken = default)
         {
             var encodedSymbol = EncodeSymbol(symbol);
@@ -69,10 +80,36 @@ namespace S3CandlesDemo.Candles
             string tempFilePath = PathCombine(_baseLocation, tempFileName);
             DateTime? minTimestamp = null, maxTimestamp = null;
             byte[] buffer = new byte[Candle.CandleByteSize];
+            Candle? lastCandle = null;
             await using (var stream = await OpenWriteStreamAsync(tempFilePath))
             {
                 await foreach (var candle in candles.WithCancellation(cancellationToken))
-                {
+                {                    
+                    while (lastCandle.HasValue && !CandlesAreConsecutive(lastCandle.Value.Timestamp, candle.Timestamp, intervalMinutes, symbol))
+                    {
+                        var gapStart = lastCandle!.Value.Timestamp.AddMinutes(intervalMinutes);
+                    
+                        var flatCandle = new Candle
+                        {
+                            Timestamp = gapStart,
+                            Open = lastCandle.Value.Close,
+                            High = lastCandle.Value.Close,
+                            Low = lastCandle.Value.Close,
+                            Close = lastCandle.Value.Close,
+                            Volume = 0,
+                            TradeCount = 0
+                        };
+                        Candle.CandleToBytes(flatCandle, buffer);
+                        await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+                        if (!minTimestamp.HasValue || flatCandle.Timestamp < minTimestamp.Value)
+                            minTimestamp = flatCandle.Timestamp;
+                        if (!maxTimestamp.HasValue || flatCandle.Timestamp > maxTimestamp.Value)
+                            maxTimestamp = flatCandle.Timestamp;
+                        lastCandle = flatCandle;
+                    }
+                    
+                     
+                    lastCandle = candle;
                     Candle.CandleToBytes(candle, buffer);
                     await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
                     if (!minTimestamp.HasValue || candle.Timestamp < minTimestamp.Value)
@@ -101,6 +138,11 @@ namespace S3CandlesDemo.Candles
             await MoveTempToFinalAsync(tempFilePath, newFilePath);
             var info = new CandleFileInfoInternal(newFilePath, start, end, newVersion);
             _fileIndex.AddOrUpdate(key, k => new List<CandleFileInfoInternal> { info }, (k, list) => { list.Add(info); list.Sort((a, b) => a.Start.CompareTo(b.Start)); return list; });
+        }
+
+        protected virtual bool CandlesAreConsecutive(DateTime prev, DateTime next, int intervalMinutes, string symbol)
+        {
+            return prev.AddMinutes(intervalMinutes) == next;
         }
 
         public async IAsyncEnumerable<Candle> FetchCandlesAsync(string symbol, int intervalMinutes, DateTime from, DateTime to, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
