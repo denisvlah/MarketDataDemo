@@ -8,8 +8,8 @@ on:
       [ main ]
     paths:
     - 'Dockerfile.api'
-    - 'S3CandlesDemo.Api/**'
-    - 'S3CandlesDemo.Candles/**'
+    - 'MarketDataDemo.Api/**'
+    - 'MarketDataDemo.Candles/**'
     - '.github/workflows/marketdata-api-AutoDeployTrigger-aa3f23b7-0870-436c-8224-6d665dc48c46.yml'
 
   # Allow manual trigger 

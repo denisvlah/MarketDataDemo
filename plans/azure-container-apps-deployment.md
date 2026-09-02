@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the plan to deploy the `S3CandlesDemo.Api` project to Azure Container Apps with autoscaling configured from 0 to 1 instance. The deployment uses **Managed Identity** for secure Azure Blob Storage authentication and includes **CORS support** for the static web app frontend.
+This document outlines the plan to deploy the `MarketDataDemo.Api` project to Azure Container Apps with autoscaling configured from 0 to 1 instance. The deployment uses **Managed Identity** for secure Azure Blob Storage authentication and includes **CORS support** for the static web app frontend.
 
 ## Architecture
 
@@ -58,7 +58,7 @@ graph TB
 
 ### Update Azure Blob Storage Authentication to Use Managed Identity
 
-The [`AzureBlobCandlesRepository.cs`](S3CandlesDemo.Candles/AzureBlobCandlesRepository.cs) and [`Program.cs`](S3CandlesDemo.Api/Program.cs) need to be updated to use Azure AD authentication instead of connection strings.
+The [`AzureBlobCandlesRepository.cs`](MarketDataDemo.Candles/AzureBlobCandlesRepository.cs) and [`Program.cs`](MarketDataDemo.Api/Program.cs) need to be updated to use Azure AD authentication instead of connection strings.
 
 **Required NuGet Package:**
 ```xml

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishAot>true</PublishAot>
+    <UserSecretsId>MarketDataDemo-api-local-dev</UserSecretsId>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishTrimmed>true</PublishTrimmed>
+    <StripSymbolsDuringAotCompilation>true</StripSymbolsDuringAotCompilation>
+    <!-- Enable enhanced model metadata for Swagger compatibility -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <!-- Disable AOT for development/debugging to allow Swagger to work -->
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.11.4" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.14.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MarketDataDemo.Candles\MarketDataDemo.Candles.csproj" />
+  </ItemGroup>
+
+</Project>

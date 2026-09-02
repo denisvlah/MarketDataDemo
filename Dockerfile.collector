@@ -2,14 +2,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy project files and restore
-COPY S3CandlesDemo.Candles/S3CandlesDemo.Candles.csproj S3CandlesDemo.Candles/
-COPY S3CandlesDemo.KrakenLatestCollector/S3CandlesDemo.KrakenLatestCollector.csproj S3CandlesDemo.KrakenLatestCollector/
-RUN dotnet restore S3CandlesDemo.KrakenLatestCollector/S3CandlesDemo.KrakenLatestCollector.csproj
+COPY MarketDataDemo.Candles/MarketDataDemo.Candles.csproj MarketDataDemo.Candles/
+COPY MarketDataDemo.KrakenLatestCollector/MarketDataDemo.KrakenLatestCollector.csproj MarketDataDemo.KrakenLatestCollector/
+RUN dotnet restore MarketDataDemo.KrakenLatestCollector/MarketDataDemo.KrakenLatestCollector.csproj
 
 # Copy source and publish
-COPY S3CandlesDemo.Candles/ S3CandlesDemo.Candles/
-COPY S3CandlesDemo.KrakenLatestCollector/ S3CandlesDemo.KrakenLatestCollector/
-RUN dotnet publish S3CandlesDemo.KrakenLatestCollector/S3CandlesDemo.KrakenLatestCollector.csproj \
+COPY MarketDataDemo.Candles/ MarketDataDemo.Candles/
+COPY MarketDataDemo.KrakenLatestCollector/ MarketDataDemo.KrakenLatestCollector/
+RUN dotnet publish MarketDataDemo.KrakenLatestCollector/MarketDataDemo.KrakenLatestCollector.csproj \
     -c Release \
     -o /app/publish
 
@@ -20,4 +20,4 @@ COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "S3CandlesDemo.KrakenLatestCollector.dll"]
+ENTRYPOINT ["dotnet", "MarketDataDemo.KrakenLatestCollector.dll"]

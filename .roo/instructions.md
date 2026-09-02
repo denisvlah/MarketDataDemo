@@ -1,4 +1,4 @@
-# AI Coding Agent Instructions for S3CandlesDemo
+# AI Coding Agent Instructions for MarketDataDemo
 
 ## General Agent Behavior
 
@@ -14,25 +14,25 @@ This is a **C# .NET 10.0 project** that implements efficient OHLCV (Open, High, 
 ### Core Architecture
 
 **Three-project structure:**
-- **S3CandlesDemo.Api** (ASP.NET Minimal API): HTTP endpoints for candle storage/retrieval using Scalar OpenAPI docs
-- **S3CandlesDemo.Candles** (Core library): `ICandlesRepository` interface with filesystem and S3 implementations
-- **S3CandlesDemo.Tests** (xUnit): Unit and integration tests for all repository implementations
+- **MarketDataDemo.Api** (ASP.NET Minimal API): HTTP endpoints for candle storage/retrieval using Scalar OpenAPI docs
+- **MarketDataDemo.Candles** (Core library): `ICandlesRepository` interface with filesystem and S3 implementations
+- **MarketDataDemo.Tests** (xUnit): Unit and integration tests for all repository implementations
 
 ## Key Concepts & Patterns
 
 ### 1. Binary Serialization Pattern
-- **Location**: [../S3CandlesDemo.Candles/Candle.cs](../S3CandlesDemo.Candles/Candle.cs)
+- **Location**: [../MarketDataDemo.Candles/Candle.cs](../MarketDataDemo.Candles/Candle.cs)
 - Candles are serialized as fixed-size binary records: 8 bytes (timestamp ticks) + 40 bytes (5 doubles) + 4 bytes (trade count) = **52 bytes total**
 - Use `Candle.CandleToBytes()` and `Candle.BytesToCandle()` for conversions
 - Zero JSON serialization overhead for storage; JSON only used in HTTP responses
 - **Key field names in JSON responses** (short form): `t` (timestamp), `o` (open), `h` (high), `l` (low), `c` (close), `v` (volume), `n` (trade count)
 
 ### 2. Repository Pattern with Template Method
-- **Location**: [../S3CandlesDemo.Candles/CandlesRepositoryBase.cs](../S3CandlesDemo.Candles/CandlesRepositoryBase.cs)
+- **Location**: [../MarketDataDemo.Candles/CandlesRepositoryBase.cs](../MarketDataDemo.Candles/CandlesRepositoryBase.cs)
 - Abstract base class defines file naming: `{Symbol}_{Interval}_{StartDateTime}_{EndDateTime}_v{Version}.bin`
 - Datetime format in filenames: `yyyyMMdd'T'HHmmss` (e.g., `20240101T120000`)
 - File index is cached in `ConcurrentDictionary<(symbol, interval), List<CandleFileInfoInternal>>` for fast lookups
-- Implementations ([../S3CandlesDemo.Candles/FileSystemCandlesRepository.cs](../S3CandlesDemo.Candles/FileSystemCandlesRepository.cs), [../S3CandlesDemo.Candles/S3CandlesRepository.cs](../S3CandlesDemo.Candles/S3CandlesRepository.cs)) override only:
+- Implementations ([../MarketDataDemo.Candles/FileSystemCandlesRepository.cs](../MarketDataDemo.Candles/FileSystemCandlesRepository.cs), [../MarketDataDemo.Candles/S3CandlesRepository.cs](../MarketDataDemo.Candles/S3CandlesRepository.cs)) override only:
   - `EnumerateFiles()` - list available binary files
   - `OpenWriteStreamAsync()` - temp file creation for writes
   - `MoveTempToFinalAsync()` - atomic rename after write completion
@@ -45,7 +45,7 @@ This is a **C# .NET 10.0 project** that implements efficient OHLCV (Open, High, 
 - No temporary allocations; uses fixed 52-byte buffer for serialization
 
 ### 4. File Index Polling (S3)
-- **Location**: `FileIndexPollingService` in [../S3CandlesDemo.Api/Program.cs](../S3CandlesDemo.Api/Program.cs)
+- **Location**: `FileIndexPollingService` in [../MarketDataDemo.Api/Program.cs](../MarketDataDemo.Api/Program.cs)
 - The `S3CandlesRepository` builds its in-memory `_fileIndex` once on startup via `BuildFileIndexAsync()`
 - A background `IHostedService` (`FileIndexPollingService`) calls `ICandlesRepository.RebuildFileIndexAsync()` every **1 minute**
 - This keeps the index current without the overhead of calling `S3:ListObjects` on every API request
@@ -53,14 +53,14 @@ This is a **C# .NET 10.0 project** that implements efficient OHLCV (Open, High, 
 - Do **not** add per-request index rebuilds; always rely on the polling service or an explicit store operation (which updates `_fileIndex` directly)
 
 ### 5. S3 Configuration
-- **Location**: [../S3CandlesDemo.Api/appsettings.json](../S3CandlesDemo.Api/appsettings.json)
+- **Location**: [../MarketDataDemo.Api/appsettings.json](../MarketDataDemo.Api/appsettings.json)
 - **Dev Configuration**: Local MinIO (Docker) via `minio-dockercompose.yaml` and `startMinio.sh`
 - Required settings: `S3Candles:Bucket`, `S3Candles:Prefix`, `S3Candles:AWS:{AccessKey,SecretKey,Region}`
 - Optional: `S3Candles:AWS:Url` for custom S3-compatible endpoints (MinIO); forces path-style and HTTP
 - **Startup Behavior**: If S3 config is incomplete, logs critical error and exits with code 1
 - **Single-bucket layout**: All data lives in one bucket under three fixed prefixes:
   - `candles/` — binary `.bin` candle files
-  - `csv/` — CSV source files for `S3CandlesDemo.CsvLoader`
+  - `csv/` — CSV source files for `MarketDataDemo.CsvLoader`
   - `config/` — job config CSV (`config/kraken-collector-config.csv`)
 - **No `ConfigBucket`, `CsvBucket`, or `ConfigKey` settings** — these have been removed. Use only `Bucket` (single bucket) and `Prefix: "candles"`.
 
@@ -75,20 +75,20 @@ dotnet build
 dotnet test
 
 # Start API locally (uses appsettings.Development.json by default)
-dotnet run --project S3CandlesDemo.Api
+dotnet run --project MarketDataDemo.Api
 
 # Start MinIO backend for S3 testing
 bash startMinio.sh  # or docker-compose up -f minio-dockercompose.yaml
 ```
 
 ### Testing Strategy
-- **xUnit** framework with global using [../S3CandlesDemo.Tests/GlobalUsings.cs](../S3CandlesDemo.Tests/GlobalUsings.cs)
-- Test patterns: [../S3CandlesDemo.Tests/CandleSerializationTests.cs](../S3CandlesDemo.Tests/CandleSerializationTests.cs) (unit), [../S3CandlesDemo.Tests/FileSystemCandlesRepositoryTests.cs](../S3CandlesDemo.Tests/FileSystemCandlesRepositoryTests.cs) (repository), [../S3CandlesDemo.Tests/S3CandlesRepositoryIntegrationTests.cs](../S3CandlesDemo.Tests/S3CandlesRepositoryIntegrationTests.cs) (requires MinIO)
+- **xUnit** framework with global using [../MarketDataDemo.Tests/GlobalUsings.cs](../MarketDataDemo.Tests/GlobalUsings.cs)
+- Test patterns: [../MarketDataDemo.Tests/CandleSerializationTests.cs](../MarketDataDemo.Tests/CandleSerializationTests.cs) (unit), [../MarketDataDemo.Tests/FileSystemCandlesRepositoryTests.cs](../MarketDataDemo.Tests/FileSystemCandlesRepositoryTests.cs) (repository), [../MarketDataDemo.Tests/S3CandlesRepositoryIntegrationTests.cs](../MarketDataDemo.Tests/S3CandlesRepositoryIntegrationTests.cs) (requires MinIO)
 - Binary round-trip tests validate serialization precision
 - File naming regex validation in repository tests
 
 ### CSV Data Loading
-- **Startup behavior**: [../S3CandlesDemo.Api/Program.cs](../S3CandlesDemo.Api/Program.cs) initializes `ICandlesRepository` before app runs
+- **Startup behavior**: [../MarketDataDemo.Api/Program.cs](../MarketDataDemo.Api/Program.cs) initializes `ICandlesRepository` before app runs
 - CSV files in `csv/` folder follow pattern: `{Symbol}_{IntervalMinutes}.csv`
 - If binary files already exist for a symbol/interval, CSV is skipped (no duplicates)
 - CSV loading is logged; failures should be logged but don't crash startup
@@ -112,7 +112,7 @@ bash startMinio.sh  # or docker-compose up -f minio-dockercompose.yaml
 - API returns `Results.Ok()` for success, unhandled exceptions become HTTP 500
 
 ### JSON Serialization Context
-- **Location**: [../S3CandlesDemo.Api/Program.cs](../S3CandlesDemo.Api/Program.cs) line ~51
+- **Location**: [../MarketDataDemo.Api/Program.cs](../MarketDataDemo.Api/Program.cs) line ~51
 - Uses `AppJsonSerializerContext.Default.Candle` for trimmed/AOT-compatible serialization
 - Enables `PublishAot=true` and `InvariantGlobalization=true` in Release build
 - In Debug, AOT is disabled to allow Swagger docs
@@ -121,10 +121,10 @@ bash startMinio.sh  # or docker-compose up -f minio-dockercompose.yaml
 
 **Adding a new repository backend**: Inherit `CandlesRepositoryBase`, implement 5 abstract methods (EnumerateFiles, GetFileName, OpenWrite/ReadStreamAsync, MoveTempToFinal), and override `GetJobConfigAsync`.
 
-**Adding HTTP endpoints**: [../S3CandlesDemo.Api/Program.cs](../S3CandlesDemo.Api/Program.cs) MapPost/MapGet at lines 60+. Use `ICandlesRepository` injected from DI container.
+**Adding HTTP endpoints**: [../MarketDataDemo.Api/Program.cs](../MarketDataDemo.Api/Program.cs) MapPost/MapGet at lines 60+. Use `ICandlesRepository` injected from DI container.
 
 **Adjusting file size limits**: Logic in `CandlesRepositoryBase.StoreCandlesAsync()` around version increment; no hard limit currently enforced.
 
 **Performance debugging**: Check `_fileIndex` cache; if slow, ensure `BuildFileIndex()` completes before large queries.
 
-**Reading job config**: All projects use `await _repository.GetJobConfigAsync()` (returns `IReadOnlyList<PairJobConfig>`) instead of project-local config readers. `PairJobConfig` and `PairJobConfigReader` are defined in `S3CandlesDemo.Candles`. The S3 key is hard-coded as `config/kraken-collector-config.csv`.
+**Reading job config**: All projects use `await _repository.GetJobConfigAsync()` (returns `IReadOnlyList<PairJobConfig>`) instead of project-local config readers. `PairJobConfig` and `PairJobConfigReader` are defined in `MarketDataDemo.Candles`. The S3 key is hard-coded as `config/kraken-collector-config.csv`.

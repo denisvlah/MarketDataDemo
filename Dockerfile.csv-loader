@@ -5,14 +5,14 @@ WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends clang zlib1g-dev && rm -rf /var/lib/apt/lists/*
 
 # Copy project files and restore
-COPY S3CandlesDemo.Candles/S3CandlesDemo.Candles.csproj S3CandlesDemo.Candles/
-COPY S3CandlesDemo.CsvLoader/S3CandlesDemo.CsvLoader.csproj S3CandlesDemo.CsvLoader/
-RUN dotnet restore S3CandlesDemo.CsvLoader/S3CandlesDemo.CsvLoader.csproj
+COPY MarketDataDemo.Candles/MarketDataDemo.Candles.csproj MarketDataDemo.Candles/
+COPY MarketDataDemo.CsvLoader/MarketDataDemo.CsvLoader.csproj MarketDataDemo.CsvLoader/
+RUN dotnet restore MarketDataDemo.CsvLoader/MarketDataDemo.CsvLoader.csproj
 
 # Copy source and publish (AOT produces a self-contained native binary)
-COPY S3CandlesDemo.Candles/ S3CandlesDemo.Candles/
-COPY S3CandlesDemo.CsvLoader/ S3CandlesDemo.CsvLoader/
-RUN dotnet publish S3CandlesDemo.CsvLoader/S3CandlesDemo.CsvLoader.csproj \
+COPY MarketDataDemo.Candles/ MarketDataDemo.Candles/
+COPY MarketDataDemo.CsvLoader/ MarketDataDemo.CsvLoader/
+RUN dotnet publish MarketDataDemo.CsvLoader/MarketDataDemo.CsvLoader.csproj \
     -c Release \
     -o /app/publish
 
@@ -24,4 +24,4 @@ COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-ENTRYPOINT ["./S3CandlesDemo.CsvLoader"]
+ENTRYPOINT ["./MarketDataDemo.CsvLoader"]

@@ -3,14 +3,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-noble-aot AS build
 WORKDIR /src
 
 # Copy project files and restore
-COPY S3CandlesDemo.Candles/S3CandlesDemo.Candles.csproj S3CandlesDemo.Candles/
-COPY S3CandlesDemo.Api/S3CandlesDemo.Api.csproj S3CandlesDemo.Api/
-RUN dotnet restore S3CandlesDemo.Api/S3CandlesDemo.Api.csproj
+COPY MarketDataDemo.Candles/MarketDataDemo.Candles.csproj MarketDataDemo.Candles/
+COPY MarketDataDemo.Api/MarketDataDemo.Api.csproj MarketDataDemo.Api/
+RUN dotnet restore MarketDataDemo.Api/MarketDataDemo.Api.csproj
 
 # Copy source and publish as a self-contained native AOT binary
-COPY S3CandlesDemo.Candles/ S3CandlesDemo.Candles/
-COPY S3CandlesDemo.Api/ S3CandlesDemo.Api/
-RUN dotnet publish S3CandlesDemo.Api/S3CandlesDemo.Api.csproj \
+COPY MarketDataDemo.Candles/ MarketDataDemo.Candles/
+COPY MarketDataDemo.Api/ MarketDataDemo.Api/
+RUN dotnet publish MarketDataDemo.Api/MarketDataDemo.Api.csproj \
     -c Release \
     -r linux-x64 \
     --self-contained true \
@@ -27,4 +27,4 @@ ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 # Native AOT produces a plain ELF binary, not a .dll
-ENTRYPOINT ["./S3CandlesDemo.Api"]
+ENTRYPOINT ["./MarketDataDemo.Api"]

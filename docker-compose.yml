@@ -134,7 +134,7 @@ services:
   # ── k6 stress test (opt-in via: docker compose --profile stress up k6-stress) ──
   k6-stress:
     build:
-      context: ./S3CandlesDemo.StressTests
+      context: ./MarketDataDemo.StressTests
       dockerfile: Dockerfile
     container_name: s3candles-k6-stress
     profiles:

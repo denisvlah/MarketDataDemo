@@ -3,7 +3,7 @@
 # =============================================================================
 # Azure Container Apps Deployment Script for Market Data API
 # =============================================================================
-# This script deploys the S3CandlesDemo.Api to Azure Container Apps with:
+# This script deploys the MarketDataDemo.Api to Azure Container Apps with:
 # - Managed Identity for Azure Blob Storage authentication
 # - Autoscaling from 0 to 1 instance
 # - CORS support for static web app frontend

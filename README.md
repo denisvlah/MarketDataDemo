@@ -47,13 +47,13 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
 
 | Project | Description |
 |---------|-------------|
-| **S3CandlesDemo.Candles** | Core library — `ICandlesRepository`, binary serialization, filesystem & S3 implementations |
-| **S3CandlesDemo.Api** | ASP.NET Minimal API — HTTP endpoints for candle storage/retrieval |
-| **S3CandlesDemo.KrakenLatestCollector** | Scheduled batch job — collects latest OHLCV data from Kraken API and stores to S3 |
-| **S3CandlesDemo.KrakenHistoricalImporter** | One-shot batch job — imports full historical OHLCV data from Kraken's Google Drive archive into S3 |
-| **S3CandlesDemo.CsvLoader** | Scheduled batch job — fills gaps in candle data by streaming CSV files from S3 (AOT-compiled minimal API) |
-| **S3CandlesDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
-| **S3CandlesDemo.StressTests** | k6 stress tests — ramp-up load tests targeting the candles fetch endpoint |
+| **MarketDataDemo.Candles** | Core library — `ICandlesRepository`, binary serialization, filesystem & S3 implementations |
+| **MarketDataDemo.Api** | ASP.NET Minimal API — HTTP endpoints for candle storage/retrieval |
+| **MarketDataDemo.KrakenLatestCollector** | Scheduled batch job — collects latest OHLCV data from Kraken API and stores to S3 |
+| **MarketDataDemo.KrakenHistoricalImporter** | One-shot batch job — imports full historical OHLCV data from Kraken's Google Drive archive into S3 |
+| **MarketDataDemo.CsvLoader** | Scheduled batch job — fills gaps in candle data by streaming CSV files from S3 (AOT-compiled minimal API) |
+| **MarketDataDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
+| **MarketDataDemo.StressTests** | k6 stress tests — ramp-up load tests targeting the candles fetch endpoint |
 
 ## Docker Compose Deployment
 
@@ -91,14 +91,14 @@ All data is stored in a **single S3 bucket** under three fixed path prefixes:
 | Prefix | Content |
 |--------|---------|
 | `candles/` | Binary `.bin` candle files served by the API |
-| `csv/` | CSV source files consumed by `S3CandlesDemo.CsvLoader` |
+| `csv/` | CSV source files consumed by `MarketDataDemo.CsvLoader` |
 | `config/` | Job config CSV (`config/kraken-collector-config.csv`) |
 
-All scheduled jobs (Kraken collector, CSV loader, historical importer) read symbols and intervals via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared bucket and returns a list of `PairJobConfig` records. This file is seeded by `minio-setup` on first start from `S3CandlesDemo.KrakenLatestCollector/kraken-collector-config.csv`.
+All scheduled jobs (Kraken collector, CSV loader, historical importer) read symbols and intervals via **`ICandlesRepository.GetJobConfigAsync()`**, which reads `config/kraken-collector-config.csv` from the shared bucket and returns a list of `PairJobConfig` records. This file is seeded by `minio-setup` on first start from `MarketDataDemo.KrakenLatestCollector/kraken-collector-config.csv`.
 
 ## Stress Testing (k6)
 
-The `S3CandlesDemo.StressTests/` folder contains a [k6](https://k6.io/) load test targeting the `GET /candles/{intervalMinutes}` endpoint.
+The `MarketDataDemo.StressTests/` folder contains a [k6](https://k6.io/) load test targeting the `GET /candles/{intervalMinutes}` endpoint.
 
 The test ramps virtual users (VUs) in stages (5 → 20 → 50 → 0) and reports average response time, 95th-percentile latency, and failed request rate.
 
@@ -126,7 +126,7 @@ docker compose --profile stress run --rm \
 **Run locally** (without Docker, requires `k6` installed):
 
 ```bash
-cd S3CandlesDemo.StressTests
+cd MarketDataDemo.StressTests
 k6 run candles-stress.js
 
 # With live browser dashboard at http://localhost:5665
@@ -139,13 +139,13 @@ k6 run --out web-dashboard candles-stress.js
 bash startMinio.sh
 
 # Run API (uses appsettings.Development.json → localhost:7000)
-dotnet run --project S3CandlesDemo.Api
+dotnet run --project MarketDataDemo.Api
 
 # API Reference (Scalar/Swagger)
 open http://localhost:5044/scalar
 
 # Run collector
-dotnet run --project S3CandlesDemo.KrakenLatestCollector
+dotnet run --project MarketDataDemo.KrakenLatestCollector
 
 # Run tests
 dotnet test
@@ -158,7 +158,7 @@ The API maintains an in-memory index of all candle files stored in S3 for fast q
 This means:
 - Files added externally (e.g. by the collector or importer) will be visible to the API within ~1 minute.
 - Write operations through the API update the index immediately and do not wait for the next poll.
-- The polling interval can be adjusted in `FileIndexPollingService` in `S3CandlesDemo.Api/Program.cs`.
+- The polling interval can be adjusted in `FileIndexPollingService` in `MarketDataDemo.Api/Program.cs`.
 
 ## Additional Recommendations
 

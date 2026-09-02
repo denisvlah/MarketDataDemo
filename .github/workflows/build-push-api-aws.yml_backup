@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'S3CandlesDemo.Api/**'
-      - 'S3CandlesDemo.Candles/**'
+      - 'MarketDataDemo.Api/**'
+      - 'MarketDataDemo.Candles/**'
       - 'Dockerfile.api'
   workflow_dispatch:
     inputs:
