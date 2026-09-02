@@ -61,6 +61,7 @@ services:
       - "5044:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      StorageType: s3 
       S3Candles__Bucket: candles-data
       S3Candles__Prefix: candles
       S3Candles__AWS__AccessKey: minioadmin

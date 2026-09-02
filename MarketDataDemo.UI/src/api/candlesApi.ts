@@ -44,6 +44,9 @@ export async function fetchCandles(
   from: Date,
   to: Date,
 ): Promise<Candle[]> {
+  if (symbol.includes("/")) {
+    symbol = symbol.replace("/", "");
+  }
   const params = new URLSearchParams({
     from: from.toISOString(),
     to: to.toISOString(),

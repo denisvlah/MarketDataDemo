@@ -10,6 +10,7 @@ namespace MarketDataDemo.Candles
         
         // Swapped atomically on rebuild; lists inside are immutable after publish.
         protected ConcurrentDictionary<(string symbol, int interval), List<CandleFileInfoInternal>> _fileIndex = new();
+        protected ConcurrentDictionary<string, string> _normalizedSymbolsMap = new(); // maps normalized symbol to original symbol (e.g. "BTCUSD" → "BTC/USD")
         private static readonly Regex FilePattern = FilePatternRegex();
 
         [GeneratedRegex("^(?<symbol>[^_]+)_(?<interval>\\d+)_(?<start>\\d{8}T\\d{6})_(?<end>\\d{8}T\\d{6})_v(?<version>\\d+)\\.bin$")]
@@ -51,6 +52,10 @@ namespace MarketDataDemo.Candles
             foreach (var kvp in newIndex)
                 kvp.Value.Sort((a, b) => a.Start.CompareTo(b.Start));
             _fileIndex = newIndex;
+            var t = _fileIndex.Keys.Select(x=>x.symbol)
+                .Distinct().Where(x=>x.Contains("/"))
+                .ToDictionary(x=>x.Replace("/",""), x=>x );
+            _normalizedSymbolsMap = new(t);
         }
 
         public Task RebuildFileIndexAsync(CancellationToken cancellationToken = default) => BuildFileIndexAsync();
@@ -155,6 +160,9 @@ namespace MarketDataDemo.Candles
 
         public async IAsyncEnumerable<Candle> FetchCandlesAsync(string symbol, int intervalMinutes, DateTime from, DateTime to, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            if (_normalizedSymbolsMap.TryGetValue(symbol, out var originalSymbol))
+                symbol = originalSymbol;
+
             var key = (symbol, intervalMinutes);
             if (!_fileIndex.TryGetValue(key, out var files)) yield break;
             files = files.Where(f => f.End >= from && f.Start <= to).OrderBy(f => f.Start).ThenByDescending(x => x.Version).ToList();

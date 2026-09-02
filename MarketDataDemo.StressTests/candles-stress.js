@@ -3,7 +3,7 @@ import { check, sleep } from 'k6';
 
 // ── Configuration (override via --env or docker-compose environment) ───
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:5044';
-const SYMBOL   = __ENV.SYMBOL   || 'XBT/USD';
+const SYMBOL   = __ENV.SYMBOL   || 'XBTUSD';
 const INTERVAL = __ENV.INTERVAL || '1';
 const FROM     = __ENV.FROM     || '2024-01-01T00:00:00Z';
 const TO       = __ENV.TO       || '2024-12-31T23:59:59Z';
@@ -32,8 +32,8 @@ export const options = {
 // ── Virtual user scenario ──────────────────────────────────────────────
 export default function () {
   const url =
-    `${BASE_URL}/candles/${INTERVAL}` +
-    `?symbol=${encodeURIComponent(SYMBOL)}&from=${FROM}&to=${TO}`;
+    `${BASE_URL}/candles/${SYMBOL}/${INTERVAL}` +
+    `?from=${FROM}&to=${TO}`;
 
   const res = http.get(url, {
     headers: { Accept: 'application/json' },

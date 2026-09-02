@@ -29,13 +29,39 @@ namespace MarketDataDemo.Candles
             byte[] candleBuffer = new byte[Candle.CandleByteSize];
             var partStream = new MemoryStream(minPartSize + Candle.CandleByteSize);
             int partNumber = 1;
+            Candle? lastCandle = null;
+            var flatCandlesAdded = 0;
 
             try
             {
                 await foreach (var candle in candles.WithCancellation(cancellationToken))
                 {
+                    while (lastCandle.HasValue && !CandlesAreConsecutive(lastCandle.Value.Timestamp, candle.Timestamp, intervalMinutes, symbol))
+                    {
+                        var gapStart = lastCandle!.Value.Timestamp.AddMinutes(intervalMinutes);
+                    
+                        var flatCandle = new Candle
+                        {
+                            Timestamp = gapStart,
+                            Open = lastCandle.Value.Close,
+                            High = lastCandle.Value.Close,
+                            Low = lastCandle.Value.Close,
+                            Close = lastCandle.Value.Close,
+                            Volume = 0,
+                            TradeCount = 0
+                        };
+                        Candle.CandleToBytes(flatCandle, candleBuffer);
+                        await partStream.WriteAsync(candleBuffer, 0, candleBuffer.Length, cancellationToken);
+                        if (!minTimestamp.HasValue || flatCandle.Timestamp < minTimestamp.Value)
+                            minTimestamp = flatCandle.Timestamp;
+                        if (!maxTimestamp.HasValue || flatCandle.Timestamp > maxTimestamp.Value)
+                            maxTimestamp = flatCandle.Timestamp;
+                        lastCandle = flatCandle;
+                        flatCandlesAdded++;
+                    }
+                    lastCandle = candle;
                     Candle.CandleToBytes(candle, candleBuffer);
-                    partStream.Write(candleBuffer, 0, candleBuffer.Length);
+                    await partStream.WriteAsync(candleBuffer, 0, candleBuffer.Length, cancellationToken);
 
                     if (!minTimestamp.HasValue || candle.Timestamp < minTimestamp.Value)
                         minTimestamp = candle.Timestamp;

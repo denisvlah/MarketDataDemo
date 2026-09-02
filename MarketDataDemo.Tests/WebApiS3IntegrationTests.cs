@@ -63,7 +63,7 @@ public class WebApiS3IntegrationTests : IClassFixture<WebApplicationFactory<ApiP
         // Act: Fetch candles
         var from = candles.First().Timestamp;
         var to = candles.Last().Timestamp;
-        var getResp = await _client.GetAsync($"/candles/{interval}?symbol={symbol}&from={from:O}&to={to:O}");
+        var getResp = await _client.GetAsync($"/candles/{symbol}/{interval}?from={from:O}&to={to:O}");
         getResp.EnsureSuccessStatusCode();
         var fetched = await getResp.Content.ReadFromJsonAsync<List<Candle>>();
 
