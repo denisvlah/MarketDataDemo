@@ -9,8 +9,8 @@ DateTime format: yyyy-MM-dd HH:mm:ss  (UTC, e.g. 2024-01-01 00:00:00)
 Each CSV row (no header): timestamp_unix, open, high, low, close, volume, trade_count
 
 Usage:
-    python rename_csv.py            # renames files in the current directory
-    python rename_csv.py /path/to   # renames files in the given directory
+    python rename_csv.py            # renames files in the current directory tree (recursive)
+    python rename_csv.py /path/to   # renames files in the given directory tree (recursive)
     python rename_csv.py --dry-run  # preview without renaming
 """
 
@@ -82,42 +82,48 @@ def get_timestamp_range(path: str) -> tuple[int, int] | None:
 
 
 def process_directory(directory: str, dry_run: bool) -> None:
-    csv_files = sorted(
-        f for f in os.listdir(directory) if f.lower().endswith(".csv")
+    # Collect CSV files recursively
+    csv_paths = sorted(
+        os.path.join(root, f)
+        for root, _dirs, files in os.walk(directory)
+        for f in files
+        if f.lower().endswith(".csv")
     )
 
-    if not csv_files:
+    if not csv_paths:
         print("No CSV files found.")
         return
 
     renamed = skipped = errors = 0
 
-    for filename in csv_files:
+    for src_path in csv_paths:
+        rel_path = os.path.relpath(src_path, directory)
+        filename = os.path.basename(src_path)
+
         # Skip files already in the target format
         if TARGET_PATTERN.match(filename):
-            print(f"  [skip]   {filename}  (already renamed)")
+            print(f"  [skip]   {rel_path}  (already renamed)")
             skipped += 1
             continue
 
         match = SOURCE_PATTERN.match(filename)
         if not match:
-            print(f"  [skip]   {filename}  (unrecognized name pattern)")
+            print(f"  [skip]   {rel_path}  (unrecognized name pattern)")
             skipped += 1
             continue
 
         symbol = match.group(1)
         interval = match.group(2)
-        src_path = os.path.join(directory, filename)
 
         try:
             range_ = get_timestamp_range(src_path)
         except Exception as exc:
-            print(f"  [error]  {filename}  — could not read timestamps: {exc}")
+            print(f"  [error]  {rel_path}  — could not read timestamps: {exc}")
             errors += 1
             continue
 
         if range_ is None:
-            print(f"  [skip]   {filename}  (empty file)")
+            print(f"  [skip]   {rel_path}  (empty file)")
             skipped += 1
             continue
 
@@ -125,18 +131,18 @@ def process_directory(directory: str, dry_run: bool) -> None:
         start_str = unix_to_utc_str(first_ts)
         end_str = unix_to_utc_str(last_ts)
         new_name = f"{symbol}_{interval}_{start_str}_{end_str}.csv"
-        dst_path = os.path.join(directory, new_name)
+        dst_path = os.path.join(os.path.dirname(src_path), new_name)
 
         if os.path.exists(dst_path):
-            print(f"  [skip]   {filename}  → {new_name}  (target already exists)")
+            print(f"  [skip]   {rel_path}  → {new_name}  (target already exists)")
             skipped += 1
             continue
 
         if dry_run:
-            print(f"  [dry]    {filename}  →  {new_name}")
+            print(f"  [dry]    {rel_path}  →  {new_name}")
         else:
             os.rename(src_path, dst_path)
-            print(f"  [done]   {filename}  →  {new_name}")
+            print(f"  [done]   {rel_path}  →  {new_name}")
 
         renamed += 1
 
