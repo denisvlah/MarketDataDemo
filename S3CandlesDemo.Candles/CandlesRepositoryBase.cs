@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace S3CandlesDemo.Candles
 {
@@ -14,9 +15,12 @@ namespace S3CandlesDemo.Candles
         [GeneratedRegex("^(?<symbol>[^_]+)_(?<interval>\\d+)_(?<start>\\d{8}T\\d{6})_(?<end>\\d{8}T\\d{6})_v(?<version>\\d+)\\.bin$")]
         private static partial Regex FilePatternRegex();
 
-        protected CandlesRepositoryBase(string baseLocation)
+        protected readonly ILogger _logger;
+
+        protected CandlesRepositoryBase(string baseLocation, ILogger logger)
         {
             _baseLocation = baseLocation;
+            _logger = logger;
         }
 
         // URL-encode/decode symbol so that symbols like "BTC/USD" are safe in file names.
@@ -81,6 +85,7 @@ namespace S3CandlesDemo.Candles
             DateTime? minTimestamp = null, maxTimestamp = null;
             byte[] buffer = new byte[Candle.CandleByteSize];
             Candle? lastCandle = null;
+            var flatCandlesAdded = 0;
             await using (var stream = await OpenWriteStreamAsync(tempFilePath))
             {
                 await foreach (var candle in candles.WithCancellation(cancellationToken))
@@ -106,6 +111,7 @@ namespace S3CandlesDemo.Candles
                         if (!maxTimestamp.HasValue || flatCandle.Timestamp > maxTimestamp.Value)
                             maxTimestamp = flatCandle.Timestamp;
                         lastCandle = flatCandle;
+                        flatCandlesAdded++;
                     }
                     
                      
@@ -138,6 +144,8 @@ namespace S3CandlesDemo.Candles
             await MoveTempToFinalAsync(tempFilePath, newFilePath);
             var info = new CandleFileInfoInternal(newFilePath, start, end, newVersion);
             _fileIndex.AddOrUpdate(key, k => new List<CandleFileInfoInternal> { info }, (k, list) => { list.Add(info); list.Sort((a, b) => a.Start.CompareTo(b.Start)); return list; });
+            if (flatCandlesAdded > 0)
+                _logger.LogInformation("StoreCandlesAsync: Added {FlatCount} flat candles to fill gaps for {Symbol} {Interval}min between {Start} and {End}", flatCandlesAdded, symbol, intervalMinutes, start, end);
         }
 
         protected virtual bool CandlesAreConsecutive(DateTime prev, DateTime next, int intervalMinutes, string symbol)

@@ -1,6 +1,8 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace S3CandlesDemo.Candles
 {
@@ -158,7 +160,8 @@ namespace S3CandlesDemo.Candles
         private readonly string _bucket;
         private readonly string? _prefix;
 
-        public S3CandlesRepository(string bucket, string? prefix = null, IAmazonS3? client = null) : base(prefix ?? string.Empty)
+        public S3CandlesRepository(string bucket, string? prefix = null, IAmazonS3? client = null, ILogger<S3CandlesRepository>? logger = null)
+            : base(prefix ?? string.Empty, (ILogger?)logger ?? NullLogger<S3CandlesRepository>.Instance)
         {
             _bucket = bucket;
             _prefix = prefix?.Trim('/');

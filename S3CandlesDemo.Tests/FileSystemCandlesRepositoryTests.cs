@@ -385,7 +385,7 @@ public class FileSystemCandlesRepositoryTests
         }
     }
 
-    //[Fact] this test is one time utility to verify we can read candles from a specific file on disk, not meant for regular test runs
+    [Fact] //this test is one time utility to verify we can read candles from a specific file on disk, not meant for regular test runs
     public async Task TestSpecificFile()
     {
         var candlesPath = "/home/denivlah/Desktop/Projects/s3CandlesDemo/s3CandlesDemo/candles";

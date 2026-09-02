@@ -3,6 +3,8 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
 using System.IO.Pipelines;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace S3CandlesDemo.Candles
 {
@@ -40,19 +42,22 @@ namespace S3CandlesDemo.Candles
         /// <param name="connectionString">Azure Storage connection string.</param>
         /// <param name="containerName">Blob container name.</param>
         /// <param name="prefix">Optional blob name prefix (e.g. "candles"). No leading/trailing slashes needed.</param>
-        public AzureBlobCandlesRepository(string connectionString, string containerName, string? prefix = null)
-            : this(new BlobContainerClient(connectionString, containerName), prefix) { }
+        /// <param name="logger">Optional logger.</param>
+        public AzureBlobCandlesRepository(string connectionString, string containerName, string? prefix = null, ILogger<AzureBlobCandlesRepository>? logger = null)
+            : this(new BlobContainerClient(connectionString, containerName), prefix, logger) { }
 
         /// <param name="serviceClient">Pre-built <see cref="BlobServiceClient"/> authenticated with managed identity or other credentials.</param>
         /// <param name="containerName">Blob container name.</param>
         /// <param name="prefix">Optional blob name prefix (e.g. "candles"). No leading/trailing slashes needed.</param>
-        public AzureBlobCandlesRepository(BlobServiceClient serviceClient, string containerName, string? prefix = null)
-            : this(serviceClient.GetBlobContainerClient(containerName), prefix) { }
+        /// <param name="logger">Optional logger.</param>
+        public AzureBlobCandlesRepository(BlobServiceClient serviceClient, string containerName, string? prefix = null, ILogger<AzureBlobCandlesRepository>? logger = null)
+            : this(serviceClient.GetBlobContainerClient(containerName), prefix, logger) { }
 
         /// <param name="container">Pre-built <see cref="BlobContainerClient"/> (useful for testing with Azurite or a fake).</param>
         /// <param name="prefix">Optional blob name prefix.</param>
-        public AzureBlobCandlesRepository(BlobContainerClient container, string? prefix = null)
-            : base(prefix?.Trim('/') ?? string.Empty)
+        /// <param name="logger">Optional logger.</param>
+        public AzureBlobCandlesRepository(BlobContainerClient container, string? prefix = null, ILogger<AzureBlobCandlesRepository>? logger = null)
+            : base(prefix?.Trim('/') ?? string.Empty, (ILogger?)logger ?? NullLogger<AzureBlobCandlesRepository>.Instance)
         {
             _container = container;
             _prefix = string.IsNullOrWhiteSpace(prefix) ? null : prefix.Trim('/');

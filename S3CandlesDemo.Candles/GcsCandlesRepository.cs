@@ -4,6 +4,8 @@ using Google.Api.Gax;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace S3CandlesDemo.Candles
 {
@@ -48,8 +50,8 @@ namespace S3CandlesDemo.Candles
         /// <param name="bucket">GCS bucket name.</param>
         /// <param name="prefix">Optional object-key prefix (e.g. "candles"). No leading/trailing slashes needed.</param>
         /// <param name="client">Optional pre-built StorageClient (useful for testing with a fake/emulator).</param>
-        public GcsCandlesRepository(string bucket, string? prefix = null, StorageClient? client = null)
-            : base(prefix?.Trim('/') ?? string.Empty)
+        public GcsCandlesRepository(string bucket, string? prefix = null, StorageClient? client = null, ILogger<GcsCandlesRepository>? logger = null)
+            : base(prefix?.Trim('/') ?? string.Empty, (ILogger?)logger ?? NullLogger<GcsCandlesRepository>.Instance)
         {
             _bucket = bucket;
             _prefix = string.IsNullOrWhiteSpace(prefix) ? null : prefix.Trim('/');

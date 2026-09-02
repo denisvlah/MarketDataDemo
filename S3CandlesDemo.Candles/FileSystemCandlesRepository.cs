@@ -1,11 +1,14 @@
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace S3CandlesDemo.Candles
 {
     public class FileSystemCandlesRepository : CandlesRepositoryBase
     {
-        public FileSystemCandlesRepository(string baseDirectory) : base(baseDirectory)
+        public FileSystemCandlesRepository(string baseDirectory, ILogger<FileSystemCandlesRepository>? logger = null)
+            : base(baseDirectory, (ILogger?)logger ?? NullLogger<FileSystemCandlesRepository>.Instance)
         {
         }
 
