@@ -5,9 +5,10 @@ variable "location" {
   type        = string
 }
 
-variable "resource_group_name" {
-  description = "Name of the existing Azure resource group"
+variable "resource_group_base_name" {
+  description = "Base name for the resource group"
   type        = string
+  default     = "market-data-demo-rg"
 }
 
 variable "image_tag" {
