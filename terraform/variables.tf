@@ -3,10 +3,11 @@
 variable "location" {
   description = "Azure region where resources will be deployed"
   type        = string
+  default     = "eastus"
 }
 
-variable "resource_group_base_name" {
-  description = "Base name for the resource group"
+variable "resource_group_name" {
+  description = "Name of the Azure resource group"
   type        = string
   default     = "market-data-demo-rg"
 }
@@ -18,7 +19,7 @@ variable "image_tag" {
 }
 
 variable "env_suffix" {
-  description = "Suffix for environment to make storage account name unique"
+  description = "Suffix for environment to make names unique"
   type        = string
   default     = ""
 }

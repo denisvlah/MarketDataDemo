@@ -2,45 +2,101 @@ name: Deploy to Azure
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'MarketDataDemo.Api/**'
       - 'MarketDataDemo.Candles/**'
       - 'Dockerfile.api'
+      - 'terraform/**'
+      - '.github/workflows/deploy.yaml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag (defaults to commit SHA)'
+        required: false
+        default: ''
 
 permissions:
-  id-token: write   # Required for OIDC
+  id-token: write   # Required for Azure OIDC authentication
   contents: read
 
 jobs:
-  build-deploy:
+  build-and-deploy:
+    name: Build, Push & Deploy to Azure Container Apps
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Build and Push to Docker Hub
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.api
-        push: true
-        tags: vlahdenis/marketdatademo.api:${{ github.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Login to Azure
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Determine Image Tag
+        id: vars
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            echo "image_tag=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
 
-    - name: Terraform Init and Apply
-      run: |
-        cd terraform
-        terraform init
-        terraform apply -auto-approve \
-          -var="image_tag=${{ github.sha }}" \
-          -var="resource_group_name=${{ secrets.AZURE_RG }}" \
-          -var="location=${{ secrets.AZURE_LOCATION }}"
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.api
+          push: true
+          tags: |
+            vlahdenis/marketdatademo.api:${{ steps.vars.outputs.image_tag }}
+            vlahdenis/marketdatademo.api:latest
+
+      - name: Login to Azure via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: "true"
+        run: |
+          if [ -n "${{ secrets.TF_STATE_STORAGE_ACCOUNT_NAME }}" ]; then
+            echo "Initializing Terraform with Azure Blob remote backend..."
+            terraform init \
+              -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP_NAME || secrets.AZURE_RG || 'market-data-demo-rg' }}" \
+              -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT_NAME }}" \
+              -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER_NAME || 'tfstate' }}" \
+              -backend-config="key=marketdatademo.terraform.tfstate" \
+              -backend-config="use_oidc=true"
+          else
+            echo "::warning::TF_STATE_STORAGE_ACCOUNT_NAME not set. Running terraform init without remote state backend configuration."
+            terraform init
+          fi
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: "true"
+        run: |
+          terraform apply -auto-approve \
+            -var="image_tag=${{ steps.vars.outputs.image_tag }}" \
+            -var="resource_group_name=${{ secrets.AZURE_RG || 'market-data-demo-rg' }}" \
+            -var="location=${{ secrets.AZURE_LOCATION || 'eastus' }}"
