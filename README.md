@@ -55,7 +55,44 @@ This project is an experiment to use S3 files for OHLCV (Open, High, Low, Close,
 | **MarketDataDemo.Tests** | xUnit tests — unit, repository, and integration tests (uses MinIO via Testcontainers) |
 | **MarketDataDemo.StressTests** | k6 stress tests — ramp-up load tests targeting the candles fetch endpoint |
 
-## Docker Compose Deployment
+## Terraform Deployment to Azure (Production)
+
+For production deployments to Azure, use the Terraform scripts in the `terraform/` directory. These scripts will create an Azure Container App environment and configure all necessary resources.
+
+## How to Use Terraform
+
+1. **Set Required Variables**
+   - Create a `terraform.tfvars` file in the `terraform/` directory with your configuration:
+   ```terraform terraform/terraform.tfvars
+   location = "eastus"
+   resource_group_name = "my-resource-group"
+   image_tag = "v1.2.0"
+   ```
+
+2. **Terraform Commands**
+   ```bash
+   cd terraform
+   terraform init
+   terraform plan -out=deployment.plan
+   terraform apply deployment.plan
+   ```
+
+## Key Terraform Variables
+
+The following variables are defined in `terraform/variables.tf` and can be customized:
+
+- **location** (string): Azure region where resources will be deployed (*required*)
+- **resource_group_name** (string): Name of existing Azure resource group (*required*)
+- **image_tag** (string): Docker image tag to deploy (default: "latest")
+- **env_suffix** (string): Suffix to make storage account names unique when testing (default: "")
+- **base_name** (string): Base name for container app and environment (default: "market-data-demo-api")
+
+All variables can be overridden using `-var`:
+```bash
+terraform apply -var="base_name=custom-app-name"
+```
+
+# Docker Compose Deployment
 
 A full-stack `docker-compose.yml` runs all services together with MinIO as the S3 backend:
 
