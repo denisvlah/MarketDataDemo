@@ -31,7 +31,7 @@ Options:
   -b, --branch <branch>          GitHub branch for OIDC subject (default: main)
   -a, --app-name <name>          Azure AD App registration name (default: marketdata-demo-github-actions)
   -g, --resource-group <name>    Azure Resource Group name (default: market-data-demo-rg)
-  -l, --location <region>        Azure region (default: eastus)
+  -l, --location <region>        Azure region (default: westeurope)
   -s, --subscription <id>        Azure Subscription ID (default: current active subscription)
   -h, --help                     Show help message
 ```
@@ -56,7 +56,7 @@ Configure these secrets in your repository under **Settings > Secrets and variab
 | `AZURE_TENANT_ID` | Azure AD Tenant ID | Output by `setup-azure-oidc.sh` |
 | `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | Output by `setup-azure-oidc.sh` |
 | `AZURE_RG` | Azure Resource Group Name | `market-data-demo-rg` |
-| `AZURE_LOCATION` | Azure Region | `eastus` |
+| `AZURE_LOCATION` | Azure Region | `westeurope` |
 | `TF_STATE_STORAGE_ACCOUNT_NAME` | Storage Account for Terraform state | Output by `setup-azure-oidc.sh` |
 | `TF_STATE_CONTAINER_NAME` | Blob Container for Terraform state | `tfstate` |
 | `DOCKERHUB_USERNAME` | Docker Hub Username | `vlahdenis` |
@@ -77,7 +77,7 @@ The workflow at [`.github/workflows/deploy.yaml`](../.github/workflows/deploy.ya
 
 | Variable | Description | Default |
 |---|---|---|
-| `location` | Azure region | `eastus` |
+| `location` | Azure region | `westeurope` |
 | `resource_group_name` | Resource Group name | `market-data-demo-rg` |
 | `image_tag` | Docker image tag to deploy | `latest` |
 | `base_name` | Base name for Container App & Environment | `market-data-demo-api` |

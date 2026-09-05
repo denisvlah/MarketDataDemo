@@ -64,7 +64,7 @@ For production deployments to Azure, use the Terraform scripts in the `terraform
 1. **Set Required Variables**
    - Create a `terraform.tfvars` file in the `terraform/` directory with your configuration:
    ```terraform terraform/terraform.tfvars
-   location = "eastus"
+   location = "westeurope"
    resource_group_name = "my-resource-group"
    image_tag = "v1.2.0"
    ```

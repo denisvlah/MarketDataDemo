@@ -99,4 +99,4 @@ jobs:
           terraform apply -auto-approve \
             -var="image_tag=${{ steps.vars.outputs.image_tag }}" \
             -var="resource_group_name=${{ secrets.AZURE_RG || 'market-data-demo-rg' }}" \
-            -var="location=${{ secrets.AZURE_LOCATION || 'eastus' }}"
+            -var="location=${{ secrets.AZURE_LOCATION || 'westeurope' }}"

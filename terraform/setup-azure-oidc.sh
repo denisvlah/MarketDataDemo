@@ -76,7 +76,7 @@ GITHUB_REPO="${GITHUB_REPO:-$(detect_github_repo)}"
 GITHUB_BRANCH="${GITHUB_BRANCH:-$(detect_github_branch)}"
 AZURE_APP_NAME="${AZURE_APP_NAME:-marketdata-demo-github-actions}"
 AZURE_RG="${AZURE_RG:-market-data-demo-rg}"
-AZURE_LOCATION="${AZURE_LOCATION:-eastus}"
+AZURE_LOCATION="${AZURE_LOCATION:-westeurope}"
 AZURE_SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-}"
 TF_STATE_CONTAINER="${TF_STATE_CONTAINER:-tfstate}"
 
