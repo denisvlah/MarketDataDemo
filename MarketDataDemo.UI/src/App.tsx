@@ -8,10 +8,10 @@ import { fetchSymbols, fetchCandles, type Candle, type SymbolIntervals } from '.
 
 export default function App() {
   const [symbolData, setSymbolData] = useState<SymbolIntervals[]>([]);
-  const [symbol, setSymbol] = useState('BTC/USDT');
-  const [interval, setInterval_] = useState(1440);
-  const [from, setFrom] = useState<string | null>('2024-01-01 00:00:00');
-  const [to, setTo] = useState<string | null>('2024-06-01 00:00:00');
+  const [symbol, setSymbol] = useState('ETH/EUR');
+  const [interval, setInterval_] = useState(1);
+  const [from, setFrom] = useState<string | null>('2025-03-02 00:00:00');
+  const [to, setTo] = useState<string | null>('2025-03-09 00:00:00');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

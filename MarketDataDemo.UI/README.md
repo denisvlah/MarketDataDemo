@@ -1,116 +1,97 @@
-# MarketDataDemo UI — Requirements
+# MarketDataDemo UI — Frontend Application
 
-A frontend SPA to display OHLCV candlestick charts for data stored in the MarketDataDemo API.
+A frontend Single Page Application (SPA) to visualize OHLCV candlestick and volume data stored in the MarketDataDemo API.
 
-## 1. Tech Stack
-1.1) React 18+ with TypeScript, scaffolded with **Vite**.
-1.2) **Mantine UI v7** as the component library (free, polished, great date pickers and select components).
-1.3) **TradingView Lightweight Charts v4** (`lightweight-charts`) for candlestick + volume visualization.
+## Features
 
-## 2. Data Source & API Integration
-2.1) The UI connects to the ASP.NET API (default `http://localhost:5044`). The base URL should be configurable via an environment variable (`VITE_API_BASE_URL`).
-2.2) On startup, call `GET /candles/files` to discover all available **symbols** and **intervals** and populate the dropdowns dynamically — no hardcoded symbol lists.
-2.3) Fetch candle data via `GET /candles/{intervalMinutes}?symbol={symbol}&from={iso}&to={iso}`. The response is a JSON array of `{ t, o, h, l, c, v, n }`.
+- **Interactive Candlestick & Volume Charts**: Powered by TradingView's Lightweight Charts (`lightweight-charts`) with responsive layout and crosshair tooltips.
+- **Dynamic Symbol & Interval Discovery**: Automatically reads symbols and resolutions from the `/candles/files` endpoint on startup.
+- **Date Range Selection**: Date and time pickers with intuitive range presets and validation.
+- **Mantine UI Components**: Modern, accessible UI built with `@mantine/core` and `@tabler/icons-react`.
+- **Azure Static Web App Deployment**: Production-ready SPA configuration including `staticwebapp.config.json` navigation fallbacks and security headers.
 
-## 3. User Controls (toolbar / header bar)
-3.1) **Symbol selector** — searchable dropdown (Mantine `Select` with `searchable`), populated from the `/candles/files` response (distinct symbols).
-3.2) **Interval selector** — dropdown populated from available intervals for the selected symbol (e.g., 1, 5, 15, 60, 1440 minutes). Display human-friendly labels (e.g., "1m", "5m", "15m", "1h", "1D").
-3.3) **Date range picker** — Mantine `DateTimePicker` pair (from / to) with sensible defaults: `from` = earliest available data start, `to` = latest available data end (derived from `/candles/files`).
-3.4) **Load / Refresh button** to fetch and render the selected data.
+---
 
-## 4. Chart
-4.1) Main pane: **Candlestick series** (OHLC) using TradingView Lightweight Charts.
-4.2) Secondary pane (below): **Volume histogram** rendered as a histogram series, colored green/red based on close vs open.
-4.3) Chart should be responsive and fill the available width. Minimum height ~500px.
-4.4) Enable crosshair with OHLCV tooltip showing values at the hovered candle.
-4.5) Chart time axis should display in **UTC**.
+## Tech Stack
 
-## 5. UX & State Management
-5.1) Show a **loading spinner/skeleton** while data is being fetched.
-5.2) Show a clear **error message** if the API is unreachable or returns an error.
-5.3) Show an **empty state** message when no data exists for the selected parameters.
-5.4) On first load, default to **symbol = "BTCUSD"**, **interval = 1440 (1D)**, **from = 2025-01-01**, **to = 2026-01-01** and immediately load the chart. If the user changes any control, fetch fresh data on demand.
+- **React 19** with **TypeScript**
+- **Vite** build tooling
+- **Mantine UI v9** (`@mantine/core`, `@mantine/dates`, `@mantine/hooks`)
+- **TradingView Lightweight Charts v5** (`lightweight-charts`)
+- **Day.js** for timestamp manipulations
 
-## 6. Project Structure
-6.1) Keep a clean component separation: `App`, `ChartToolbar`, `CandleChart`, `api/` service layer.
-6.2) API calls in a dedicated `src/api/candlesApi.ts` module using `fetch`.
-6.3) No global state library needed — React state + prop drilling is sufficient for this scope.
+---
 
-## 7. Build & Run
-7.1) `npm run dev` for local development with hot reload.
-7.2) `npm run build` produces a static bundle suitable for serving from any static host or Docker container.
-7.3) In development mode, Vite's dev server **must** proxy all `/candles` requests to the API backend (default `http://localhost:5044`). No CORS configuration on the backend is needed — the proxy handles it. Configure this in `vite.config.ts` under `server.proxy`.
+## Configuration & Environment Variables
 
-# React + TypeScript + Vite
+| Variable | Description | Local Dev Default | Production / Azure Default |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | Base URL of the MarketDataDemo backend API | Empty string (uses Vite dev server proxy) | `https://<container-app-fqdn>` |
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### Local Development (.env)
 
-Currently, two official plugins are available:
+When running locally with `npm run dev`, Vite proxies `/candles` requests to the local backend API running on `http://localhost:5044`. You do **not** need to configure `VITE_API_BASE_URL` for local development.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+# Optional override for local development if targeting a remote backend:
+# VITE_API_BASE_URL=http://localhost:5044
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Production (.env.production)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+When deploying to Azure Static Web Apps, `VITE_API_BASE_URL` is set to the HTTPS URL of the deployed Azure Container App (e.g. `https://market-data-demo-api.<region>.azurecontainerapps.io`).
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## CORS & API Connectivity
+
+The backend API (`MarketDataDemo.Api`) and Azure Container App ingress are configured to allow Cross-Origin Resource Sharing (CORS):
+- **Container App Ingress CORS**: The Terraform script configures the Container App ingress `cors` block to permit requests originating from `https://<static-web-app>.azurestaticapps.net` and local development origins.
+- **ASP.NET Core API CORS**: The API includes CORS middleware (`AddCors` / `UseCors`) to handle preflight `OPTIONS` requests and send standard CORS response headers (`Access-Control-Allow-Origin: *`).
+
+---
+
+## Local Development & Build
+
+### 1. Install Dependencies
+```bash
+npm install
 ```
+
+### 2. Run Local Dev Server
+```bash
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### 3. Build for Production
+```bash
+# Set backend API URL for production build:
+export VITE_API_BASE_URL="https://market-data-demo-api.westeurope.azurecontainerapps.io"
+npm run build
+```
+The compiled static assets are output to the `dist/` directory.
+
+### 4. Preview Production Build
+```bash
+npm run preview
+```
+
+---
+
+## Azure Static Web App Configuration (`staticwebapp.config.json`)
+
+The application includes a `staticwebapp.config.json` configuration file located in `public/` (and compiled to `dist/`) with:
+- **Navigation Fallback**: Rewrites unknown non-file requests to `/index.html` for client-side routing.
+- **MIME Types**: Explicit `.json` MIME type mappings.
+- **Content Security Policy**: Global headers allowing API connectivity to the Container App backend.
+
+---
+
+## Automated CI/CD Deployment
+
+The GitHub Actions workflow at [`.github/workflows/deploy.yaml`](../.github/workflows/deploy.yaml) automatically:
+1. Provisions the Azure Static Web App and Azure Container App via Terraform.
+2. Extracts the Container App URL and Static Web App deployment token.
+3. Builds the frontend with `VITE_API_BASE_URL=<container_app_url>`.
+4. Deploys the static bundle to Azure Static Web Apps via `Azure/static-web-apps-deploy@v1`.

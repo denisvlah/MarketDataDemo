@@ -5,7 +5,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = "~> 4.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -27,7 +27,7 @@ resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# Create resource group
+# Create shared resource group for all services
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
@@ -56,7 +56,16 @@ resource "azurerm_storage_container" "candles_data" {
   container_access_type = "private"
 }
 
-# Container app with exact CPU/RAM specs, ingress, and managed identity
+# Azure Static Web App for Frontend UI (resides in same resource group & location)
+resource "azurerm_static_web_app" "ui" {
+  name                = "${var.base_name}-ui${var.env_suffix != "" ? "-${var.env_suffix}" : ""}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku_tier            = var.static_web_app_sku_tier
+  sku_size            = var.static_web_app_sku_size
+}
+
+# Container app with exact CPU/RAM specs, ingress, CORS policy, and managed identity
 resource "azurerm_container_app" "main" {
   name                         = "${var.base_name}${var.env_suffix != "" ? "-${var.env_suffix}" : ""}"
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -96,6 +105,17 @@ resource "azurerm_container_app" "main" {
     external_enabled = true
     target_port      = 8080
     transport        = "auto"
+
+    cors {
+      allowed_origins = distinct(concat(
+        ["https://${azurerm_static_web_app.ui.default_host_name}"],
+        var.additional_cors_origins
+      ))
+      allowed_methods           = ["GET", "POST", "OPTIONS"]
+      allowed_headers           = ["*"]
+      allow_credentials_enabled = false
+      max_age_in_seconds        = 3600
+    }
 
     traffic_weight {
       percentage      = 100

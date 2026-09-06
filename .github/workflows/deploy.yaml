@@ -7,6 +7,7 @@ on:
     paths:
       - 'MarketDataDemo.Api/**'
       - 'MarketDataDemo.Candles/**'
+      - 'MarketDataDemo.UI/**'
       - 'Dockerfile.api'
       - 'terraform/**'
       - '.github/workflows/deploy.yaml'
@@ -23,7 +24,7 @@ permissions:
 
 jobs:
   build-and-deploy:
-    name: Build, Push & Deploy to Azure Container Apps
+    name: Build, Push & Deploy to Azure Container Apps and Static Web Apps
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -66,6 +67,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       - name: Terraform Init
         working-directory: terraform
@@ -89,6 +92,7 @@ jobs:
           fi
 
       - name: Terraform Apply
+        id: apply
         working-directory: terraform
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -100,3 +104,40 @@ jobs:
             -var="image_tag=${{ steps.vars.outputs.image_tag }}" \
             -var="resource_group_name=${{ secrets.AZURE_APP_RG || 'market-data-demo-app-rg' }}" \
             -var="location=${{ secrets.AZURE_LOCATION || 'westeurope' }}"
+
+      - name: Capture Terraform Outputs
+        id: tf_outputs
+        working-directory: terraform
+        run: |
+          CONTAINER_APP_URL=$(terraform output -raw container_app_url)
+          STATIC_WEB_APP_API_KEY=$(terraform output -raw static_web_app_api_key)
+          STATIC_WEB_APP_URL=$(terraform output -raw static_web_app_url)
+          echo "container_app_url=${CONTAINER_APP_URL}" >> "$GITHUB_OUTPUT"
+          echo "static_web_app_api_key=${STATIC_WEB_APP_API_KEY}" >> "$GITHUB_OUTPUT"
+          echo "static_web_app_url=${STATIC_WEB_APP_URL}" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::${STATIC_WEB_APP_API_KEY}"
+          echo "API URL: ${CONTAINER_APP_URL}"
+          echo "UI URL: ${STATIC_WEB_APP_URL}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Frontend UI
+        working-directory: MarketDataDemo.UI
+        env:
+          VITE_API_BASE_URL: ${{ steps.tf_outputs.outputs.container_app_url }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy UI to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.tf_outputs.outputs.static_web_app_api_key }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "MarketDataDemo.UI"
+          output_location: "dist"
+          skip_app_build: true

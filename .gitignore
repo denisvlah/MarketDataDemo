@@ -16,3 +16,28 @@ candles/
 # Environment variable files (contain secrets)
 .env
 **/.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc

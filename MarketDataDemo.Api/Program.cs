@@ -10,6 +10,17 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 
+// Configure CORS for web frontends (e.g. Azure Static Web App, local dev)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // Configure logging for Azure: JSON format, single-line, always include exceptions
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options =>
@@ -178,6 +189,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var app = builder.Build();
 
+app.UseCors();
 app.UseHttpLogging();
 
 if (app.Environment.IsDevelopment())
