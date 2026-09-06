@@ -8,7 +8,8 @@ This folder contains the Terraform configuration and automated setup script for 
 - **Ingress**: External HTTPS enabled on port 8080
 - **Azure Blob Storage**: Storage account (`candlesdata<suffix>`) and container (`candles-data`)
 - **Managed Identity & RBAC**: System-Assigned Managed Identity on the Container App with `Storage Blob Data Contributor` access to the storage account
-- **Remote State**: Terraform state stored securely in an Azure Blob Storage container (`tfstate`)
+- **Remote State**: Terraform state stored securely in an Azure Blob Storage container (`tfstate`) within `market-data-demo-rg`
+- **Application Resource Group**: `market-data-demo-app-rg` managed and created solely by Terraform
 
 ---
 
@@ -42,7 +43,7 @@ The script is safe to run multiple times. It will:
 1. Detect/create Azure AD Application and Service Principal.
 2. Resolve GitHub owner and repository numeric IDs.
 3. Create or update Federated Identity Credentials for GitHub OIDC (`repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/<branch>`).
-4. Ensure the Resource Group exists and assign required RBAC roles (`Contributor` and RBAC/User Access Administrator).
+4. Ensure the state Resource Group (`market-data-demo-rg`) exists and assign required RBAC roles (`Contributor` and RBAC/User Access Administrator).
 5. Create an Azure Storage Account and `tfstate` container for Terraform state persistence.
 6. Output the exact secrets to configure in GitHub.
 7. (Optional) If GitHub CLI (`gh`) is authenticated, automatically upload secrets to GitHub.
@@ -58,7 +59,7 @@ Configure these secrets in your repository under **Settings > Secrets and variab
 | `AZURE_CLIENT_ID` | Azure AD Application (Client) ID | Output by `setup-azure-oidc.sh` |
 | `AZURE_TENANT_ID` | Azure AD Tenant ID | Output by `setup-azure-oidc.sh` |
 | `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | Output by `setup-azure-oidc.sh` |
-| `AZURE_RG` | Azure Resource Group Name | `market-data-demo-rg` |
+| `AZURE_RG` | Azure State Resource Group Name | `market-data-demo-rg` |
 | `AZURE_LOCATION` | Azure Region | `westeurope` |
 | `TF_STATE_STORAGE_ACCOUNT_NAME` | Storage Account for Terraform state | Output by `setup-azure-oidc.sh` |
 | `TF_STATE_CONTAINER_NAME` | Blob Container for Terraform state | `tfstate` |
@@ -72,7 +73,7 @@ Configure these secrets in your repository under **Settings > Secrets and variab
 The workflow at [`.github/workflows/deploy.yaml`](../.github/workflows/deploy.yaml) performs:
 1. **Docker Build & Push**: Builds the native AOT container image from [`Dockerfile.api`](../Dockerfile.api) and pushes to Docker Hub.
 2. **Azure OIDC Authentication**: Authenticates to Azure with short-lived tokens (no static client secrets).
-3. **Terraform Init & Apply**: Initializes Terraform with the Azure Blob remote backend and applies the configuration, passing the built image tag.
+3. **Terraform Init & Apply**: Initializes Terraform with the Azure Blob remote backend (`market-data-demo-rg`) and applies the configuration creating `market-data-demo-app-rg`.
 
 ---
 
@@ -81,7 +82,7 @@ The workflow at [`.github/workflows/deploy.yaml`](../.github/workflows/deploy.ya
 | Variable | Description | Default |
 |---|---|---|
 | `location` | Azure region | `westeurope` |
-| `resource_group_name` | Resource Group name | `market-data-demo-rg` |
+| `resource_group_name` | Resource Group name for application resources | `market-data-demo-app-rg` |
 | `image_tag` | Docker image tag to deploy | `latest` |
 | `base_name` | Base name for Container App & Environment | `market-data-demo-api` |
 | `env_suffix` | Optional environment suffix | `""` |

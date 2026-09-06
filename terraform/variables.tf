@@ -9,7 +9,7 @@ variable "location" {
 variable "resource_group_name" {
   description = "Name of the Azure resource group"
   type        = string
-  default     = "market-data-demo-rg"
+  default     = "market-data-demo-app-rg"
 }
 
 variable "image_tag" {
