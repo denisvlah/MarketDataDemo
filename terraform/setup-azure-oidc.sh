@@ -6,14 +6,16 @@
 #
 # It performs the following steps:
 # 1. Validates Azure CLI login and tools.
-# 2. Resolves or creates an Azure AD App Registration.
-# 3. Resolves or creates the corresponding Service Principal.
-# 4. Configures Federated Identity Credentials for GitHub Actions OIDC.
-# 5. Creates the Azure Resource Group.
-# 6. Assigns required RBAC roles (Contributor + RBAC Administrator) to the SP.
-# 7. Creates an Azure Storage Account and Blob Container for Terraform Remote State.
-# 8. Assigns Storage Blob Data Contributor role on the state backend.
-# 9. Prints all GitHub Repository Secrets needed for the GitHub Actions workflow.
+# 2. Resolves GitHub owner and repository numeric IDs for OIDC subject claims.
+# 3. Resolves or creates an Azure AD App Registration.
+# 4. Resolves or creates the corresponding Service Principal.
+# 5. Configures Federated Identity Credentials with subject format:
+#    repo:{owner}@{owner_id}/{repo}@{repo_id}:ref:refs/heads/{branch}
+# 6. Creates the Azure Resource Group.
+# 7. Assigns required RBAC roles (Contributor + RBAC Administrator) to the SP.
+# 8. Creates an Azure Storage Account and Blob Container for Terraform Remote State.
+# 9. Assigns Storage Blob Data Contributor role on the state backend.
+# 10. Prints all GitHub Repository Secrets needed for the GitHub Actions workflow.
 # ==============================================================================
 
 set -euo pipefail
@@ -74,6 +76,8 @@ detect_github_branch() {
 # ------------------------------------------------------------------------------
 GITHUB_REPO="${GITHUB_REPO:-$(detect_github_repo)}"
 GITHUB_BRANCH="${GITHUB_BRANCH:-$(detect_github_branch)}"
+GITHUB_OWNER_ID="${GITHUB_OWNER_ID:-}"
+GITHUB_REPO_ID="${GITHUB_REPO_ID:-}"
 AZURE_APP_NAME="${AZURE_APP_NAME:-marketdata-demo-github-actions}"
 AZURE_RG="${AZURE_RG:-market-data-demo-rg}"
 AZURE_LOCATION="${AZURE_LOCATION:-westeurope}"
@@ -88,6 +92,8 @@ Usage: $(basename "$0") [options]
 Options:
   -r, --repo <org/repo>          GitHub repository (default: ${GITHUB_REPO})
   -b, --branch <branch>          GitHub branch for OIDC subject (default: ${GITHUB_BRANCH})
+      --owner-id <id>            GitHub repository owner numeric ID (auto-detected if omitted)
+      --repo-id <id>             GitHub repository numeric ID (auto-detected if omitted)
   -a, --app-name <name>          Azure AD App registration name (default: ${AZURE_APP_NAME})
   -g, --resource-group <name>    Azure Resource Group name (default: ${AZURE_RG})
   -l, --location <region>        Azure region (default: ${AZURE_LOCATION})
@@ -105,6 +111,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     -b|--branch)
       GITHUB_BRANCH="$2"
+      shift 2
+      ;;
+    --owner-id)
+      GITHUB_OWNER_ID="$2"
+      shift 2
+      ;;
+    --repo-id)
+      GITHUB_REPO_ID="$2"
       shift 2
       ;;
     -a|--app-name)
@@ -133,11 +147,81 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Extract owner and repository names
+if [[ "$GITHUB_REPO" =~ ^([^/]+)/([^/]+)$ ]]; then
+  GITHUB_OWNER="${BASH_REMATCH[1]}"
+  GITHUB_REPO_NAME="${BASH_REMATCH[2]}"
+else
+  log_error "Invalid GitHub repository format: '${GITHUB_REPO}'. Expected 'owner/repository'."
+  exit 1
+fi
+
+# Resolve GitHub Numeric IDs if not provided
+if [[ -z "$GITHUB_OWNER_ID" || -z "$GITHUB_REPO_ID" ]]; then
+  log_info "Fetching numeric IDs for GitHub repository '${GITHUB_REPO}'..."
+  REPO_JSON=""
+  if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+    REPO_JSON=$(gh api "repos/${GITHUB_REPO}" 2>/dev/null || true)
+  fi
+
+  if [[ -z "$REPO_JSON" ]] && command -v curl &>/dev/null; then
+    AUTH_HEADER=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+      AUTH_HEADER=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    elif [[ -n "${GH_TOKEN:-}" ]]; then
+      AUTH_HEADER=(-H "Authorization: Bearer ${GH_TOKEN}")
+    fi
+    REPO_JSON=$(curl -sSL -H "Accept: application/vnd.github+json" "${AUTH_HEADER[@]}" "https://api.github.com/repos/${GITHUB_REPO}" 2>/dev/null || true)
+  fi
+
+  if [[ -n "$REPO_JSON" ]]; then
+    if command -v jq &>/dev/null; then
+      [[ -z "$GITHUB_OWNER_ID" ]] && GITHUB_OWNER_ID=$(echo "$REPO_JSON" | jq -r '.owner.id // empty' 2>/dev/null || true)
+      [[ -z "$GITHUB_REPO_ID" ]] && GITHUB_REPO_ID=$(echo "$REPO_JSON" | jq -r '.id // empty' 2>/dev/null || true)
+      RESOLVED_OWNER=$(echo "$REPO_JSON" | jq -r '.owner.login // empty' 2>/dev/null || true)
+      RESOLVED_REPO=$(echo "$REPO_JSON" | jq -r '.name // empty' 2>/dev/null || true)
+      [[ -n "$RESOLVED_OWNER" ]] && GITHUB_OWNER="$RESOLVED_OWNER"
+      [[ -n "$RESOLVED_REPO" ]] && GITHUB_REPO_NAME="$RESOLVED_REPO"
+    elif command -v python3 &>/dev/null; then
+      EXTRACTED=$(echo "$REPO_JSON" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(f"{d.get(\"owner\", {}).get(\"id\", \"\")}\t{d.get(\"id\", \"\")}\t{d.get(\"owner\", {}).get(\"login\", \"\")}\t{d.get(\"name\", \"\")}")
+except Exception:
+    pass
+' 2>/dev/null || true)
+      if [[ -n "$EXTRACTED" ]]; then
+        IFS=$'\t' read -r EXT_OWNER_ID EXT_REPO_ID EXT_OWNER EXT_REPO <<< "$EXTRACTED"
+        [[ -z "$GITHUB_OWNER_ID" ]] && GITHUB_OWNER_ID="$EXT_OWNER_ID"
+        [[ -z "$GITHUB_REPO_ID" ]] && GITHUB_REPO_ID="$EXT_REPO_ID"
+        [[ -n "$EXT_OWNER" ]] && GITHUB_OWNER="$EXT_OWNER"
+        [[ -n "$EXT_REPO" ]] && GITHUB_REPO_NAME="$EXT_REPO"
+      fi
+    fi
+  fi
+fi
+
+if [[ -z "$GITHUB_OWNER_ID" || -z "$GITHUB_REPO_ID" ]]; then
+  log_error "Could not resolve numeric IDs for GitHub repository '${GITHUB_REPO}'."
+  log_error "Please supply --owner-id <ID> and --repo-id <ID> or set GITHUB_OWNER_ID and GITHUB_REPO_ID."
+  exit 1
+fi
+
+FED_SUBJECT_PREFIX="repo:${GITHUB_OWNER}@${GITHUB_OWNER_ID}/${GITHUB_REPO_NAME}@${GITHUB_REPO_ID}"
+FED_BRANCH_NAME="gh-${GITHUB_BRANCH}-branch"
+FED_BRANCH_SUBJECT="${FED_SUBJECT_PREFIX}:ref:refs/heads/${GITHUB_BRANCH}"
+FED_ENV_NAME="gh-env-production"
+FED_ENV_SUBJECT="${FED_SUBJECT_PREFIX}:environment:production"
+
 echo -e "${COLOR_BOLD}======================================================${COLOR_RESET}"
 echo -e "${COLOR_BOLD}  Azure OIDC & Terraform Setup for GitHub Actions    ${COLOR_RESET}"
 echo -e "${COLOR_BOLD}======================================================${COLOR_RESET}"
-log_info "Target GitHub Repo:    ${COLOR_BOLD}${GITHUB_REPO}${COLOR_RESET}"
+log_info "Target GitHub Repo:    ${COLOR_BOLD}${GITHUB_OWNER}/${GITHUB_REPO_NAME}${COLOR_RESET}"
+log_info "Owner numeric ID:      ${COLOR_BOLD}${GITHUB_OWNER_ID}${COLOR_RESET}"
+log_info "Repo numeric ID:       ${COLOR_BOLD}${GITHUB_REPO_ID}${COLOR_RESET}"
 log_info "Target Branch:         ${COLOR_BOLD}${GITHUB_BRANCH}${COLOR_RESET}"
+log_info "OIDC Branch Subject:   ${COLOR_BOLD}${FED_BRANCH_SUBJECT}${COLOR_RESET}"
 log_info "Azure AD App Name:     ${COLOR_BOLD}${AZURE_APP_NAME}${COLOR_RESET}"
 log_info "Resource Group:        ${COLOR_BOLD}${AZURE_RG}${COLOR_RESET}"
 log_info "Location:              ${COLOR_BOLD}${AZURE_LOCATION}${COLOR_RESET}"
@@ -146,7 +230,7 @@ echo ""
 # ------------------------------------------------------------------------------
 # Step 1: Pre-flight checks & Azure Account
 # ------------------------------------------------------------------------------
-log_info "Checking prerequisites..."
+log_info "Step 1: Checking prerequisites..."
 if ! command -v az &>/dev/null; then
   log_error "Azure CLI ('az') is not installed. Please install it: https://aka.ms/installazurecli"
   exit 1
@@ -205,43 +289,47 @@ fi
 
 # ------------------------------------------------------------------------------
 # Step 4: Configure Federated Identity Credentials for GitHub OIDC
+# Format: repo:{owner}@{owner_id}/{repo}@{repo_id}:ref:refs/heads/{branch}
 # ------------------------------------------------------------------------------
 log_info "Step 4: Configuring GitHub OIDC Federated Credentials..."
 
-FED_BRANCH_NAME="gh-${GITHUB_BRANCH}-branch"
-FED_BRANCH_SUBJECT="repo:${GITHUB_REPO}:ref:refs/heads/${GITHUB_BRANCH}"
-
 # 4a. Main Branch Credential
-if az ad app federated-credential show --id "$APP_ID" --federated-credential-id "$FED_BRANCH_NAME" &>/dev/null; then
-  log_success "Federated credential '${FED_BRANCH_NAME}' already exists."
+EXISTING_BRANCH_SUBJECT=$(az ad app federated-credential show --id "$APP_ID" --federated-credential-id "$FED_BRANCH_NAME" --query "subject" -o tsv 2>/dev/null || true)
+
+if [[ -n "$EXISTING_BRANCH_SUBJECT" && "$EXISTING_BRANCH_SUBJECT" != "null" ]]; then
+  if [[ "$EXISTING_BRANCH_SUBJECT" == "$FED_BRANCH_SUBJECT" ]]; then
+    log_success "Federated credential '${FED_BRANCH_NAME}' is already configured with subject: ${FED_BRANCH_SUBJECT}"
+  else
+    log_info "Updating federated credential '${FED_BRANCH_NAME}' subject to: ${FED_BRANCH_SUBJECT}"
+    az ad app federated-credential update \
+      --id "$APP_ID" \
+      --federated-credential-id "$FED_BRANCH_NAME" \
+      --parameters "{\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"${FED_BRANCH_SUBJECT}\",\"description\":\"GitHub Actions OIDC credential for branch ${GITHUB_BRANCH}\",\"audiences\":[\"api://AzureADTokenExchange\"]}" >/dev/null
+    log_success "Updated federated credential '${FED_BRANCH_NAME}'"
+  fi
 else
-  log_info "Creating federated credential '${FED_BRANCH_NAME}' for subject: ${FED_BRANCH_SUBJECT}"
+  log_info "Creating federated credential '${FED_BRANCH_NAME}' with subject: ${FED_BRANCH_SUBJECT}"
   az ad app federated-credential create \
     --id "$APP_ID" \
-    --parameters "{
-      \"name\": \"${FED_BRANCH_NAME}\",
-      \"issuer\": \"https://token.actions.githubusercontent.com\",
-      \"subject\": \"${FED_BRANCH_SUBJECT}\",
-      \"description\": \"GitHub Actions OIDC credential for branch ${GITHUB_BRANCH}\",
-      \"audiences\": [\"api://AzureADTokenExchange\"]
-    }" >/dev/null
+    --parameters "{\"name\":\"${FED_BRANCH_NAME}\",\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"${FED_BRANCH_SUBJECT}\",\"description\":\"GitHub Actions OIDC credential for branch ${GITHUB_BRANCH}\",\"audiences\":[\"api://AzureADTokenExchange\"]}" >/dev/null
   log_success "Created federated credential for branch: ${GITHUB_BRANCH}"
 fi
 
 # 4b. Environment Credential (optional support for GitHub Environments named 'production')
-FED_ENV_NAME="gh-env-production"
-FED_ENV_SUBJECT="repo:${GITHUB_REPO}:environment:production"
-if ! az ad app federated-credential show --id "$APP_ID" --federated-credential-id "$FED_ENV_NAME" &>/dev/null; then
-  log_info "Creating optional federated credential '${FED_ENV_NAME}' for GitHub environment 'production'"
+EXISTING_ENV_SUBJECT=$(az ad app federated-credential show --id "$APP_ID" --federated-credential-id "$FED_ENV_NAME" --query "subject" -o tsv 2>/dev/null || true)
+if [[ -n "$EXISTING_ENV_SUBJECT" && "$EXISTING_ENV_SUBJECT" != "null" ]]; then
+  if [[ "$EXISTING_ENV_SUBJECT" != "$FED_ENV_SUBJECT" ]]; then
+    log_info "Updating federated credential '${FED_ENV_NAME}' subject to: ${FED_ENV_SUBJECT}"
+    az ad app federated-credential update \
+      --id "$APP_ID" \
+      --federated-credential-id "$FED_ENV_NAME" \
+      --parameters "{\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"${FED_ENV_SUBJECT}\",\"description\":\"GitHub Actions OIDC credential for environment production\",\"audiences\":[\"api://AzureADTokenExchange\"]}" >/dev/null 2>&1 || true
+  fi
+else
+  log_info "Creating optional federated credential '${FED_ENV_NAME}' with subject: ${FED_ENV_SUBJECT}"
   az ad app federated-credential create \
     --id "$APP_ID" \
-    --parameters "{
-      \"name\": \"${FED_ENV_NAME}\",
-      \"issuer\": \"https://token.actions.githubusercontent.com\",
-      \"subject\": \"${FED_ENV_SUBJECT}\",
-      \"description\": \"GitHub Actions OIDC credential for environment production\",
-      \"audiences\": [\"api://AzureADTokenExchange\"]
-    }" >/dev/null 2>&1 || true
+    --parameters "{\"name\":\"${FED_ENV_NAME}\",\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"${FED_ENV_SUBJECT}\",\"description\":\"GitHub Actions OIDC credential for environment production\",\"audiences\":[\"api://AzureADTokenExchange\"]}" >/dev/null 2>&1 || true
 fi
 
 # ------------------------------------------------------------------------------
@@ -375,7 +463,7 @@ echo -e "${COLOR_SUCCESS}${COLOR_BOLD}                 SETUP COMPLETE! AZURE OID
 echo -e "${COLOR_BOLD}===============================================================================${COLOR_RESET}"
 echo ""
 echo -e "Add the following secrets to your GitHub repository at:"
-echo -e "${COLOR_INFO}https://github.com/${GITHUB_REPO}/settings/secrets/actions${COLOR_RESET}"
+echo -e "${COLOR_INFO}https://github.com/${GITHUB_OWNER}/${GITHUB_REPO_NAME}/settings/secrets/actions${COLOR_RESET}"
 echo ""
 echo -e "${COLOR_BOLD}---------------------- Azure Authentication Secrets -------------------------${COLOR_RESET}"
 printf "%-32s : %s\n" "AZURE_CLIENT_ID" "$APP_ID"
@@ -403,15 +491,15 @@ if command -v gh &>/dev/null; then
     read -r -t 10 -p "Set secrets automatically via GitHub CLI? [y/N]: " sync_choice || sync_choice="n"
     echo ""
     if [[ "$sync_choice" =~ ^[Yy]$ ]]; then
-      log_info "Setting secrets in repository '${GITHUB_REPO}'..."
-      gh secret set AZURE_CLIENT_ID -b "$APP_ID" -R "$GITHUB_REPO"
-      gh secret set AZURE_TENANT_ID -b "$AZURE_TENANT_ID" -R "$GITHUB_REPO"
-      gh secret set AZURE_SUBSCRIPTION_ID -b "$AZURE_SUBSCRIPTION_ID" -R "$GITHUB_REPO"
-      gh secret set AZURE_RG -b "$AZURE_RG" -R "$GITHUB_REPO"
-      gh secret set AZURE_LOCATION -b "$AZURE_LOCATION" -R "$GITHUB_REPO"
-      gh secret set TF_STATE_STORAGE_ACCOUNT_NAME -b "$TF_STATE_SA" -R "$GITHUB_REPO"
-      gh secret set TF_STATE_CONTAINER_NAME -b "$TF_STATE_CONTAINER" -R "$GITHUB_REPO"
-      gh secret set TF_STATE_RESOURCE_GROUP_NAME -b "$AZURE_RG" -R "$GITHUB_REPO"
+      log_info "Setting secrets in repository '${GITHUB_OWNER}/${GITHUB_REPO_NAME}'..."
+      gh secret set AZURE_CLIENT_ID -b "$APP_ID" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set AZURE_TENANT_ID -b "$AZURE_TENANT_ID" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set AZURE_SUBSCRIPTION_ID -b "$AZURE_SUBSCRIPTION_ID" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set AZURE_RG -b "$AZURE_RG" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set AZURE_LOCATION -b "$AZURE_LOCATION" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set TF_STATE_STORAGE_ACCOUNT_NAME -b "$TF_STATE_SA" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set TF_STATE_CONTAINER_NAME -b "$TF_STATE_CONTAINER" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
+      gh secret set TF_STATE_RESOURCE_GROUP_NAME -b "$AZURE_RG" -R "${GITHUB_OWNER}/${GITHUB_REPO_NAME}"
       log_success "Azure and Terraform secrets have been automatically set in GitHub repository!"
       log_info "Remember to set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN manually if not already configured."
     fi

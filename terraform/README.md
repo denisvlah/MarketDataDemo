@@ -29,6 +29,8 @@ cd terraform
 Options:
   -r, --repo <org/repo>          GitHub repository (default: auto-detected or denisvlah/MarketDataDemo)
   -b, --branch <branch>          GitHub branch for OIDC subject (default: main)
+      --owner-id <id>            GitHub repository owner numeric ID (auto-detected if omitted)
+      --repo-id <id>             GitHub repository numeric ID (auto-detected if omitted)
   -a, --app-name <name>          Azure AD App registration name (default: marketdata-demo-github-actions)
   -g, --resource-group <name>    Azure Resource Group name (default: market-data-demo-rg)
   -l, --location <region>        Azure region (default: westeurope)
@@ -38,11 +40,12 @@ Options:
 
 The script is safe to run multiple times. It will:
 1. Detect/create Azure AD Application and Service Principal.
-2. Create or verify Federated Identity Credentials for GitHub OIDC (`repo:<org>/<repo>:ref:refs/heads/<branch>`).
-3. Ensure the Resource Group exists and assign required RBAC roles (`Contributor` and RBAC/User Access Administrator).
-4. Create an Azure Storage Account and `tfstate` container for Terraform state persistence.
-5. Output the exact secrets to configure in GitHub.
-6. (Optional) If GitHub CLI (`gh`) is authenticated, automatically upload secrets to GitHub.
+2. Resolve GitHub owner and repository numeric IDs.
+3. Create or update Federated Identity Credentials for GitHub OIDC (`repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/<branch>`).
+4. Ensure the Resource Group exists and assign required RBAC roles (`Contributor` and RBAC/User Access Administrator).
+5. Create an Azure Storage Account and `tfstate` container for Terraform state persistence.
+6. Output the exact secrets to configure in GitHub.
+7. (Optional) If GitHub CLI (`gh`) is authenticated, automatically upload secrets to GitHub.
 
 ---
 
